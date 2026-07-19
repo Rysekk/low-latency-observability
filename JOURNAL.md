@@ -8,7 +8,7 @@ Vue d'ensemble des briques prévues. Coche au fur et à mesure.
 - [ ] Appli Go low-latency, ingestion flux de marché réel + instrumentation latence
 - [ ] Observabilité complète — Prometheus / Grafana / Loki / Tempo / OpenTelemetry / alerting
 - [ ] SLO/SLI + error budgets + dashboards SLO
-- [ ] Cluster Kubernetes (k3s/kind local → EKS ?)
+- [ ] Cluster Kubernetes (EKS)
 - [ ] GitOps,  ArgoCD ou Flux
 - [ ] IaC, Terraform (modules réutilisables)
 - [ ] CI/CD, GitHub Actions
@@ -35,28 +35,33 @@ Vue d'ensemble des briques prévues. Coche au fur et à mesure.
 
 ## ✅ Étapes franchies
 
-- [x] 11/07/2026 — Go installé (go1.26.5) après upgrade depuis la version apt périmée (1.18). Repo `low-latency-observability` initialisé. Lib WebSocket choisie (coder/websocket).
-- [x] 12/07/2026 — Squelette v1 fonctionnel : connexion au stream aggTrade BTCUSDT + boucle Read + affichage des messages JSON bruts. Premier flux de marché temps réel reçu.
+- [x] 11/07/2026 - Go installé (go1.26.5) après upgrade depuis la version apt périmée (1.18). Repo `low-latency-observability` initialisé. Lib WebSocket choisie (coder/websocket).
+- [x] 12/07/2026 - Squelette v1 fonctionnel : connexion au stream aggTrade BTCUSDT + boucle Read + affichage des messages JSON bruts. Premier flux de marché temps réel reçu.
+- [x] 18/07/2026 - Refactoring goroutine de lecture (readStream) + channel bufferisé []byte avec drop via select/default. Parsing JSON en struct AggTrade (champs typés, erreur vérifiée).
+- [x] 19/07/2026 - Instrumentation latence : trois segments (parse, processing, pipeline) via HistogramVec + label stage. Counter messages_dropped_total. Endpoint /metrics + Prometheus scrape + Grafana heatmap fonctionnels. Chaîne complète Go → Prometheus → Grafana opérationnelle.
 
 ---
 
 ## 🔨 En cours
 
-**Étape actuelle :** Structurer le code avec goroutine de lecture + channel (pattern backpressure)
-**Objectif :** Séparer la lecture de la socket (goroutine dédiée) du traitement (main), reliés par un channel bufferisé avec drop quand plein.
-**Où j'en suis :** Architecture décrite en mots (validée), pattern `select/default` pour le drop identifié. Reste à implémenter.
-**Prochain sous-pas :** (1) Modifier `main.go` : créer le channel bufferisé, lancer la goroutine de lecture, boucler dans main pour consommer le channel. (2) Tester. (3) Ajouter le log de drop.
+**Étape actuelle :** Jalon instrumentation + observabilité de base — complété ✅
+**Prochain sujet :** Nettoyage du code + dashboard Grafana propre + SLO/SLI
 
 ---
 
 ## 🔜 Prochaines étapes identifiées
 
-- [x] Créer le go.mod + décrire le flux de connexion WebSocket (dans mes mots)
-- [x] Écrire le squelette : connexion + lecture en boucle + affichage messages bruts
-- [ ] Structurer autour d'une goroutine de lecture + un channel (pattern backpressure)
-- [ ] Bufferiser les messages reçus avec drop quand plein + compteur → métrique SLI (messages_dropped_total)
-- [ ] Parser le JSON aggTrade en struct Go
-- [ ] Instrumenter parse_latency / processing_latency / pipeline_latency (histogrammes)
+- [ ] Nettoyer le code : supprimer le log.Println(aggTrade) du processing (pollue la mesure), renommer le counter avec préfixe `ingest_`
+- [ ] Dashboard Grafana propre : panels p50/p90/p99 pipeline, heatmap, counter drops, débit messages/sec
+- [ ] Définir les SLO/SLI formels sur la latence pipeline (ex. p99 < X µs) + error budget
+- [ ] Structurer le code : séparer en packages (ingestion, metrics, config)
+- [ ] Logging structuré (JSON logs) pour intégration Loki future
+- [ ] Dockeriser l'appli Go elle-même
+- [ ] Déployer sur Kubernetes (k3s/kind local)
+- [ ] CI/CD : GitHub Actions (build, test, lint, push image)
+- [ ] IaC : Terraform pour l'infra
+- [ ] GitOps : ArgoCD ou Flux pour le déploiement
+- [ ] Chaos / résilience : injection de pannes + post-mortems
 
 ---
 
@@ -66,6 +71,9 @@ Vue d'ensemble des briques prévues. Coche au fur et à mesure.
 - [x] Corriger ma compréhension : ce sont les percentiles HAUTS (p99.9) qu'on traque, pas les bas
 - [X] Vérifier la version min de Go exigée par coder/websocket
 - [x] Créer le repo git distant sur GitHub (Rysekk) et pousser
+- [ ] Apprendre PromQL (histogram_quantile, rate) — gap identifié, à combler
+- [ ] Comprendre le format Heatmap dans Grafana (Format: Heatmap vs Time series)
+
 ---
 
 ## 📚 Concepts appris (mémo perso)
