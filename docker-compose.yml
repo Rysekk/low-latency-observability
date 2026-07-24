@@ -25,5 +25,13 @@ services:
     ports:
     - "9090:9090"
 
+  low-latency-app:
+    build: .
+    image: low-latency-app:latest
+    container_name: low-latency-app
+    restart: unless-stopped
+    ports:
+    - "8080:8080"
+
 volumes:
   grafana-data:
