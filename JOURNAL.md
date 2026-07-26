@@ -32,6 +32,8 @@ Vue d'ensemble des briques prévues. Coche au fur et à mesure.
 | 11/07/2026 | Stratégie backpressure = **drop** (pas block) | Latence bornée > exhaustivité. Channel plein → drop du message entrant + incrément compteur. Bloquer = zéro perte mais latence non bornée |
 | 25/07/2026 | Dockerisation multi-stage (builder golang:1.26-alpine → scratch, CGO_ENABLED=0) | Image finale ~8.5 MB, binaire statique, surface d'attaque minimale. Copie manuelle des CA certs pour le TLS (wss://) car scratch est vide |
 | 26/07/2026 | SLI matérialisés via recording rules Prometheus (fichiers versionnés) | Config as code : pérenne, voyage avec le repo, survivra à la migration K8s. Pré-calcul = moins de charge que recalcul à la volée dans Grafana |
+| 26/07/2026 | k3s pour le dev | Outils déjà connus, facile a mettre ne place distribution Kubernetes complète et certifiée, allégée sur certains composants, kubeadm reporté à une session CKA dédiée |
+| 26/07/2026 | ghcr.io et versioning par tag | Le repos du projet est déjà sur GitHub, donc utiliser le Container Registery de GitHub était le choix logique. Pour le versionning, un tag versionné est immuable et identifiable contrairement a latest, lors de mise ne place de la CI/CD le tag sera remplacer par le SHA du commit en plus, pour lier image ↔ code exact. |
 
 ---
 
@@ -42,14 +44,20 @@ Vue d'ensemble des briques prévues. Coche au fur et à mesure.
 - [x] 18/07/2026 - Refactoring goroutine de lecture (readStream) + channel bufferisé []byte avec drop via select/default. Parsing JSON en struct AggTrade (champs typés, erreur vérifiée).
 - [x] 19/07/2026 - Instrumentation latence : trois segments (parse, processing, pipeline) via HistogramVec + label stage. Counter messages_dropped_total. Endpoint /metrics + Prometheus scrape + Grafana heatmap fonctionnels. Chaîne complète Go → Prometheus → Grafana opérationnelle.
 - [x] 25/07/2026 - Dockerisation multi-stage (scratch, ~8.5 MB). Stack complète en docker-compose (app + Prometheus + Grafana) via un seul `docker compose up --build`.
-- [x] 26/07/2026 - SLO/SLI : deux recording rules (ingest:processed_ratio, ingest:pipeline_latency_p99) + une alerting rule (high_latency_pipeline_p99 à 2ms, for 10m). Cycle Inactive→Pending→Firing testé et validé.
+- [x] 26/07/2026 - SLO/SLI : deux recording rules (ingest:processed_ratio, ingest:pipeline_latency_p99) + une alerting rule (high_latency_pipeline_p99 à 2ms, for 10m). Cycle Inactive→Pending→Firing testé et validé. Image poussée sur ghcr.io/rysekk/low-latency-app:0.1, Grafana provisionné as code (datasource + provider OK, dashboard).
 
 ---
 
 ## 🔨 En cours
 
-**Étape actuelle :** SLO/SLI recording + alerting rules — complété ✅
-**Prochain sujet :** Migration Kubernetes (k3s/kind local, pertinent CKA)
+**Étape actuelle :** Migration Kubernetes (k3s local)
+**Objectif :** Déployer l'appli Go sur k3s, puis Prometheus + Grafana
+**Où j'en suis :** Prérequis image réglé — image poussée sur ghcr.io/rysekk/low-latency-app:0.1.
+Reste à trancher : package public vs imagePullSecret (recommandation : public d'abord
+pour valider le premier Deployment, puis exercice imagePullSecret ensuite).
+Structure repo réorganisée (cmd/, build/, deploy/, observability/).
+Grafana provisionné as code (datasource + provider OK, dashboard à refaire en format v1 via API curl).
+**Prochain sous-pas :** Écrire le premier manifest Deployment + Service pour l'appli Go.
 
 ---
 
@@ -61,7 +69,7 @@ Vue d'ensemble des briques prévues. Coche au fur et à mesure.
 - [ ] Migration Kubernetes : déployer la stack sur k3s ou kind (manifests, services, configmaps)
 - [ ] Ajouter Alertmanager pour router les alertes (email/Slack), pertinent une fois sur K8s
 - [ ] Dashboard SLO + error budget (une fois l'appli tournant en continu H24)
-- [ ] Structurer le code : séparer en packages (ingestion, metrics, config)
+- [~] Structurer le code : séparer en packages (ingestion, metrics, config)
 - [ ] Logging structuré (JSON logs) pour intégration Loki future
 - [ ] CI/CD : GitHub Actions (build, test, lint, push image)
 - [ ] IaC : Terraform pour l'infra
