@@ -30,6 +30,8 @@ Vue d'ensemble des briques prévues. Coche au fur et à mesure.
 | 11/07/2026 | Métriques latence = **histogrammes** | Pour sortir des percentiles. En low-latency on surveille les percentiles HAUTS (p99, p99.9) = les pires cas / queues de distribution |
 | 11/07/2026 | lib WebSocket = **coder/websocket** | Plus récent, API moderne basée sur context.Context, minimaliste. (Note : gorilla n'est plus archivé, a repris sa maintenance) |
 | 11/07/2026 | Stratégie backpressure = **drop** (pas block) | Latence bornée > exhaustivité. Channel plein → drop du message entrant + incrément compteur. Bloquer = zéro perte mais latence non bornée |
+| 25/07/2026 | Dockerisation multi-stage (builder golang:1.26-alpine → scratch, CGO_ENABLED=0) | Image finale ~8.5 MB, binaire statique, surface d'attaque minimale. Copie manuelle des CA certs pour le TLS (wss://) car scratch est vide |
+| 26/07/2026 | SLI matérialisés via recording rules Prometheus (fichiers versionnés) | Config as code : pérenne, voyage avec le repo, survivra à la migration K8s. Pré-calcul = moins de charge que recalcul à la volée dans Grafana |
 
 ---
 
@@ -39,25 +41,28 @@ Vue d'ensemble des briques prévues. Coche au fur et à mesure.
 - [x] 12/07/2026 - Squelette v1 fonctionnel : connexion au stream aggTrade BTCUSDT + boucle Read + affichage des messages JSON bruts. Premier flux de marché temps réel reçu.
 - [x] 18/07/2026 - Refactoring goroutine de lecture (readStream) + channel bufferisé []byte avec drop via select/default. Parsing JSON en struct AggTrade (champs typés, erreur vérifiée).
 - [x] 19/07/2026 - Instrumentation latence : trois segments (parse, processing, pipeline) via HistogramVec + label stage. Counter messages_dropped_total. Endpoint /metrics + Prometheus scrape + Grafana heatmap fonctionnels. Chaîne complète Go → Prometheus → Grafana opérationnelle.
+- [x] 25/07/2026 - Dockerisation multi-stage (scratch, ~8.5 MB). Stack complète en docker-compose (app + Prometheus + Grafana) via un seul `docker compose up --build`.
+- [x] 26/07/2026 - SLO/SLI : deux recording rules (ingest:processed_ratio, ingest:pipeline_latency_p99) + une alerting rule (high_latency_pipeline_p99 à 2ms, for 10m). Cycle Inactive→Pending→Firing testé et validé.
 
 ---
 
 ## 🔨 En cours
 
-**Étape actuelle :** Jalon instrumentation + observabilité de base — complété ✅
-**Prochain sujet :** Nettoyage du code + dashboard Grafana propre + SLO/SLI
+**Étape actuelle :** SLO/SLI recording + alerting rules — complété ✅
+**Prochain sujet :** Migration Kubernetes (k3s/kind local, pertinent CKA)
 
 ---
 
 ## 🔜 Prochaines étapes identifiées
 
-- [ ] Nettoyer le code : supprimer le log.Println(aggTrade) du processing (pollue la mesure), renommer le counter avec préfixe `ingest_`
-- [ ] Dashboard Grafana propre : panels p50/p90/p99 pipeline, heatmap, counter drops, débit messages/sec
-- [ ] Définir les SLO/SLI formels sur la latence pipeline (ex. p99 < X µs) + error budget
+- [x] Nettoyer le code : supprimer le log.Println(aggTrade) du processing (pollue la mesure), renommer le counter avec préfixe `ingest_`
+- [x] Dockeriser l'appli Go elle-même
+- [x] Définir les SLO/SLI formels sur la latence pipeline (ex. p99 < X µs)
+- [ ] Migration Kubernetes : déployer la stack sur k3s ou kind (manifests, services, configmaps)
+- [ ] Ajouter Alertmanager pour router les alertes (email/Slack), pertinent une fois sur K8s
+- [ ] Dashboard SLO + error budget (une fois l'appli tournant en continu H24)
 - [ ] Structurer le code : séparer en packages (ingestion, metrics, config)
 - [ ] Logging structuré (JSON logs) pour intégration Loki future
-- [ ] Dockeriser l'appli Go elle-même
-- [ ] Déployer sur Kubernetes (k3s/kind local)
 - [ ] CI/CD : GitHub Actions (build, test, lint, push image)
 - [ ] IaC : Terraform pour l'infra
 - [ ] GitOps : ArgoCD ou Flux pour le déploiement
@@ -71,8 +76,9 @@ Vue d'ensemble des briques prévues. Coche au fur et à mesure.
 - [x] Corriger ma compréhension : ce sont les percentiles HAUTS (p99.9) qu'on traque, pas les bas
 - [X] Vérifier la version min de Go exigée par coder/websocket
 - [x] Créer le repo git distant sur GitHub (Rysekk) et pousser
-- [ ] Apprendre PromQL (histogram_quantile, rate) — gap identifié, à combler
-- [ ] Comprendre le format Heatmap dans Grafana (Format: Heatmap vs Time series)
+- [x] Réfléchir : un SLO qu'on ne risque jamais de violer est-il utile ? Envisager seuil warning + critical
+- [~] Apprendre PromQL — en cours (rate, histogram_quantile, recording/alerting rules acquis)
+- [ ] Gérer le warmup Go (p99 plus élevé au démarrage), chauffer l'appli avant exposition ?
 
 ---
 
