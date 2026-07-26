@@ -26,3 +26,5 @@ groups:
         severity: warning
       annotations:
         summary: Pipeline p99 latency is higher than 0,5ms for more than 10m.
+
+  

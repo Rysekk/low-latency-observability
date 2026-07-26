@@ -1,6 +1,5 @@
 # docker-compose.yaml
-
-# Complete LGTM stack for local OpenTelemetry development
+name: low-latency-observability
 services:
   grafana:
     image: grafana/grafana-enterprise
@@ -12,6 +11,9 @@ services:
       - GF_AUTH_DISABLE_LOGIN_FORM=true
     volumes:
       - grafana-data:/var/lib/grafana
+      - ../../observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ../../observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ../../observability/grafana/dashboards:/var/lib/grafana/dashboards
     ports:
       - "3000:3000"
   prometheus:
@@ -21,14 +23,16 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./rules.yml:/etc/prometheus/rules.yml
+      - ../../observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ../../observability/prometheus/rules.yml:/etc/prometheus/rules.yml
     ports:
     - "9090:9090"
 
   low-latency-app:
-    build: .
-    image: low-latency-app:latest
+    build: 
+      context: ../..
+      dockerfile: build/Dockerfile
+    image: ghcr.io/rysekk/low-latency-app:0.1
     container_name: low-latency-app
     restart: unless-stopped
     ports:
