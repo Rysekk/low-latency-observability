@@ -32,7 +32,7 @@ services:
     build: 
       context: ../..
       dockerfile: build/Dockerfile
-    image: ghcr.io/rysekk/low-latency-app:0.1
+    image: ghcr.io/rysekk/low-latency-app:0.2
     container_name: low-latency-app
     restart: unless-stopped
     ports:

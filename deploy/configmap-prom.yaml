@@ -1,0 +1,44 @@
+apiVersion: v1
+data:
+  prometheus.yml: |
+    rule_files:
+      - /etc/prometheus/rules.yml
+    scrape_configs:
+    - job_name: scraping_low_latency_app
+      scrape_interval: 10s
+      static_configs:
+      - targets:
+        - ingest-app:8080
+  rules.yml: |
+    groups:
+      - name: sli
+        interval: 10s
+        rules:
+        - record: ingest:processed_ratio
+          expr: 1 - (rate(ingest_message_dropped_total[5m]) / rate(ingest_message_receive_total[5m]))
+        - record: ingest:pipeline_latency_p99
+          expr: histogram_quantile(0.99, rate(ingest_duration_seconds_bucket{stage="pipeline"}[5m]))
+
+      - name: sli_alerting
+        interval: 10s
+        rules:
+        - alert: page_high_latency_pipeline_p99
+          expr: ingest:pipeline_latency_p99 > 0.002
+          for: 10m
+          keep_firing_for: 5m
+          labels:
+            severity: page
+          annotations:
+            summary: Pipeline p99 latency is higher than 2ms for more than 10m.
+        - alert: warning_high_latency_pipeline_p99
+          expr: ingest:pipeline_latency_p99 > 0.0005
+          for: 10m
+          keep_firing_for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Pipeline p99 latency is higher than 0,5ms for more than 10m.
+kind: ConfigMap
+metadata:
+  name: prometheus
+  namespace: trading-app

@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/coder/websocket"
@@ -24,11 +27,17 @@ type AggTrade struct {
 }
 
 func readStream(ctx context.Context, c chan []byte, conn *websocket.Conn, messageDropped prometheus.Counter, messageReceive prometheus.Counter) {
+	defer close(c)
 	for {
 		_, result, err := conn.Read(ctx)
 		if err != nil {
-			log.Fatalf("Read Error %v", err)
-			return
+			if ctx.Err() != nil {
+				log.Println("shutdown requested")
+				return
+			} else {
+				log.Printf("Read Error %v", err)
+				return
+			}
 		}
 		messageReceive.Inc()
 		select {
@@ -46,12 +55,10 @@ func httpPrometheusExporter() {
 }
 
 func main() {
-	var aggTrade AggTrade
-	channel := make(chan []byte, 128)
 	metricDuration := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "ingest_duration_seconds",
-			Help:    "Duration of a stage in the pipeline",
+			Help:    "Duration of a stage in the pipeline.",
 			Buckets: prometheus.ExponentialBuckets(0.00001, 1.5, 15),
 		},
 		[]string{"stage"},
@@ -66,8 +73,21 @@ func main() {
 			Name: "ingest_message_receive_total",
 			Help: "The total number of message ingested.",
 		})
-	prometheus.MustRegister(metricDuration, messageDropped, messageReceive)
-	ctx := context.Background()
+	parseError := prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "ingest_parse_errors_total",
+			Help: "The total number of error in the parsing pipeline.",
+		})
+	channel := make(chan []byte, 128)
+	prometheus.MustRegister(metricDuration, messageDropped, messageReceive, parseError)
+
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+	defer stop()
+
 	conn, _, err := websocket.Dial(ctx, wsendpoint, nil)
 	if err != nil {
 		log.Fatalf("Fail to connect to the websocket: %v", err)
@@ -77,10 +97,13 @@ func main() {
 	go readStream(ctx, channel, conn, messageDropped, messageReceive)
 	go httpPrometheusExporter()
 	for msg := range channel {
+		var aggTrade AggTrade
 		pipelineStart := time.Now()
 		err := json.Unmarshal(msg, &aggTrade)
 		if err != nil {
 			log.Printf("Json Parsing Error %v", err)
+			parseError.Inc()
+			continue
 		}
 		metricDuration.WithLabelValues("parse").Observe(time.Since(pipelineStart).Seconds())
 		processingStart := time.Now()

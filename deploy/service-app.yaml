@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: ingest-app
+  name: ingest-app
+  namespace: trading-app
+spec:
+  ports:
+  - name: 8080-metrics
+    port: 8080
+    protocol: TCP
+    targetPort: metrics
+  selector:
+    app: ingest-app
+  type: ClusterIP
