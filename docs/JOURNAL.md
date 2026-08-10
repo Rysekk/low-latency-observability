@@ -1,4 +1,4 @@
-# Journal de progression — low-latency-observability
+# Journal de progression : low-latency-observability
 ---
 
 ## 🧱 Architecture cible (briques à intégrer)
@@ -6,7 +6,7 @@
 Vue d'ensemble des briques prévues. Coche au fur et à mesure.
 
 - [ ] Appli Go low-latency, ingestion flux de marché réel + instrumentation latence
-- [ ] Observabilité complète — Prometheus / Grafana / Loki / Tempo / OpenTelemetry / alerting
+- [ ] Observabilité complète : Prometheus / Grafana / Loki / Tempo / OpenTelemetry / alerting
 - [ ] SLO/SLI + error budgets + dashboards SLO
 - [ ] Cluster Kubernetes (EKS)
 - [ ] GitOps,  ArgoCD ou Flux
@@ -35,50 +35,58 @@ Vue d'ensemble des briques prévues. Coche au fur et à mesure.
 | 26/07/2026 | k3d pour le dev | Outils déjà connus avec la possibilité d'avoir plusieur noeuds, facile a mettre ne place distribution Kubernetes complète et certifiée, allégée sur certains composants, kubeadm reporté à une session CKA dédiée |
 | 26/07/2026 | ghcr.io et versioning par tag | Le repos du projet est déjà sur GitHub, donc utiliser le Container Registery de GitHub était le choix logique. Pour le versionning, un tag versionné est immuable et identifiable contrairement a latest, lors de mise ne place de la CI/CD le tag sera remplacer par le SHA du commit en plus, pour lier image ↔ code exact. |
 | 29/07/2026 | `spec.strategy: Recreate` (au lieu du rolling update par défaut) | Avec 1 replica et `maxSurge: 1`, un rolling update démarre le nouveau pod avant de tuer l'ancien → deux WebSockets Binance ouvertes simultanément → double ingestion agrégée dans les recording rules, donc SLI faussés de façon invisible. Recreate coupe franchement (quelques secondes sans pod, trou de données) : entre perdre de la donnée et avoir de la donnée fausse, on choisit le trou, parce qu'un trou se voit et se détecte (`absent_over_time`). Coût budgété : ~1 min par déploiement sur 43 min/mois de budget d'erreur. |
-| 29/07/2026 | QoS **Burstable** : `requests = limits` sur la mémoire, `requests` seule sur le CPU | La mémoire est incompressible (dépassement = OOMKill), donc on la borne strictement. Le CPU est compressible : une limite CPU déclenche le throttling CFS, qui gèle le conteneur jusqu'à la fin de la période de 100 ms — soit un stall de 50× le SLO p99 de 2 ms. Contrepartie assumée : sans limite CPU, le pod peut affamer ses voisins sur le nœud ; on privilégie la latence sur l'équité. |
+| 29/07/2026 | QoS **Burstable** : `requests = limits` sur la mémoire, `requests` seule sur le CPU | La mémoire est incompressible (dépassement = OOMKill), donc on la borne strictement. Le CPU est compressible : une limite CPU déclenche le throttling CFS, qui gèle le conteneur jusqu'à la fin de la période de 100 ms, soit un stall de 50× le SLO p99 de 2 ms. Contrepartie assumée : sans limite CPU, le pod peut affamer ses voisins sur le nœud ; on privilégie la latence sur l'équité. |
 | 02/08/2026 | `replicas: 1` (pas de scaling horizontal) | L'utilisatiion d'un Websocket ne permet pas d'utiliser plusieurs replicas, la duplication du flux est un probléme lorsque l'on fait du scaling horizontale sauf si on met en plce du sharding, dans notre cas avec une volumetrie réel de quelque centaines de msg/s ça ne le justifie pas |
 | 02/08/2026 | Namespace unique `trading-app` (pas de séparation dev/prod par namespace) | Pas de separation pas environnement (dev/prod) ça se fait sur deux cluster different, on garde le noms des ressources identiques partout pour permettre les overlays GitOps |
 | 02/08/2026 | Un Deployment + un Service **par composant** (app, Prometheus, Grafana) | Chaque composant (app, prometheus, grafana..etc) a sont propre deploiement, cela permet un cycles de vie indépendants des uns et des autres, le multi-conteneur dans une deploiement ne se justifie que si le couplage est fort (localhost / volume partagé) |
 | 02/08/2026 | Nommage des ressources sans préfixe ni suffixe de version | Le nom d'une ressource est une adresse DNS stable, la version vit dans le tag d'image. |
 | 02/08/2026 | Arrêt gracieux via `signal.NotifyContext` + `defer close(channel)` | Si on utilise `log.Fatal` = `os.Exit(1)` -> Aucun defer exécuté et exit code d'erreur, la bonne methode c'est le producteur qui ferme le channel |
-
+| 10/08/2026 | Datasource Grafana avec **`uid` fixe** (`prometheus`) + URL DNS explicite `http://prometheus.trading-app:9090` | Fixé l'UID plutôt que le laisser générer, pour eviter qu'il change a chaque re deployement, utilisation du FQDN plutôt que le nom court pour que cela fonctionne même dans une namspace different |
+| 10/08/2026 | Provisioning Grafana = **3 ConfigMaps** (datasource / provider / dashboards JSON), une par répertoire de montage | Le critère = chemin de montage, le `path` du provider doit matcher le mountPath de la ConfigMap dashboards |
+| 10/08/2026 | Grafana : `runAsUser: 472`, `readOnlyRootFilesystem: true` + emptyDir sur `/var/lib/grafana` et `/tmp` | L'UID 472 imposé par l'image, le chemins d'écriture découverts empiriquement via les logs sous `readOnlyRootFilesystem: true` (read-only) |
+| 10/08/2026 | Dashboards récupérés **exclusivement via l'API classique** (`/api/dashboards/uid/<UID>` + `jq '.dashboard'`), jamais via l'export UI Grafana 13 | L'export UI de Grafana 13 (« classic » comme V2) produit le schéma V2 (`elements`/`layout`), qui ne se charge pas quand on le met dans une ConfigMap ; seul l'export API produit un JSON provisionnable. Workflow d'itération : copie bac-à-sable non-provisionnée → export API → réalignement de l'UID → ConfigMap |
 
 ---
 
 ## ✅ Étapes franchies
 
-- [x] 11/07/2026 - Go installé (go1.26.5) après upgrade depuis la version apt périmée (1.18). Repo `low-latency-observability` initialisé. Lib WebSocket choisie (coder/websocket).
-- [x] 12/07/2026 - Squelette v1 fonctionnel : connexion au stream aggTrade BTCUSDT + boucle Read + affichage des messages JSON bruts. Premier flux de marché temps réel reçu.
-- [x] 18/07/2026 - Refactoring goroutine de lecture (readStream) + channel bufferisé []byte avec drop via select/default. Parsing JSON en struct AggTrade (champs typés, erreur vérifiée).
-- [x] 19/07/2026 - Instrumentation latence : trois segments (parse, processing, pipeline) via HistogramVec + label stage. Counter messages_dropped_total. Endpoint /metrics + Prometheus scrape + Grafana heatmap fonctionnels. Chaîne complète Go → Prometheus → Grafana opérationnelle.
-- [x] 25/07/2026 - Dockerisation multi-stage (scratch, ~8.5 MB). Stack complète en docker-compose (app + Prometheus + Grafana) via un seul `docker compose up --build`.
-- [x] 26/07/2026 - SLO/SLI : deux recording rules (ingest:processed_ratio, ingest:pipeline_latency_p99) + une alerting rule (high_latency_pipeline_p99 à 2ms, for 10m). Cycle Inactive→Pending→Firing testé et validé. Image poussée sur ghcr.io/rysekk/low-latency-app:0.1, Grafana provisionné as code (datasource + provider OK, dashboard).
-- [x] 02/08/2026 - **Migration Kubernetes (k3d)** : Namespace `trading-app`, Deployment + Service de l'appli Go (`replicas: 1`, `strategy: Recreate`, QoS Burstable, `securityContext` pod + conteneur, `GOMEMLIMIT`). Pod `Running`, résolution DNS interne validée par curl depuis un pod jetable.
-- [x] 02/08/2026 - **Prometheus migré dans le cluster** : ConfigMap (prometheus.yml + rules.yml) montée en volume, Deployment + Service ClusterIP, volume `emptyDir` pour le TSDB. Target `ingest-app` UP, 2 recording rules + 2 alerting rules chargées et visibles dans l'UI via port-forward.
-- [x] 02/08/2026 - **Arrêt gracieux SIGTERM** implémenté dans l'appli Go (`signal.NotifyContext`, propagation du ctx dans `conn.Read`, `defer close(channel)`, struct déclarée dans la boucle). ⚠️ Pas encore buildé ni poussé.
+- [x] 11/07/2026 : Go installé (go1.26.5) après upgrade depuis la version apt périmée (1.18). Repo `low-latency-observability` initialisé. Lib WebSocket choisie (coder/websocket).
+- [x] 12/07/2026 : Squelette v1 fonctionnel : connexion au stream aggTrade BTCUSDT + boucle Read + affichage des messages JSON bruts. Premier flux de marché temps réel reçu.
+- [x] 18/07/2026 : Refactoring goroutine de lecture (readStream) + channel bufferisé []byte avec drop via select/default. Parsing JSON en struct AggTrade (champs typés, erreur vérifiée).
+- [x] 19/07/2026 : Instrumentation latence : trois segments (parse, processing, pipeline) via HistogramVec + label stage. Counter messages_dropped_total. Endpoint /metrics + Prometheus scrape + Grafana heatmap fonctionnels. Chaîne complète Go → Prometheus → Grafana opérationnelle.
+- [x] 25/07/2026 : Dockerisation multi-stage (scratch, ~8.5 MB). Stack complète en docker-compose (app + Prometheus + Grafana) via un seul `docker compose up --build`.
+- [x] 26/07/2026 : SLO/SLI : deux recording rules (ingest:processed_ratio, ingest:pipeline_latency_p99) + une alerting rule (high_latency_pipeline_p99 à 2ms, for 10m). Cycle Inactive→Pending→Firing testé et validé. Image poussée sur ghcr.io/rysekk/low-latency-app:0.1, Grafana provisionné as code (datasource + provider OK, dashboard).
+- [x] 02/08/2026 : **Migration Kubernetes (k3d)** : Namespace `trading-app`, Deployment + Service de l'appli Go (`replicas: 1`, `strategy: Recreate`, QoS Burstable, `securityContext` pod + conteneur, `GOMEMLIMIT`). Pod `Running`, résolution DNS interne validée par curl depuis un pod jetable.
+- [x] 02/08/2026 : **Prometheus migré dans le cluster** : ConfigMap (prometheus.yml + rules.yml) montée en volume, Deployment + Service ClusterIP, volume `emptyDir` pour le TSDB. Target `ingest-app` UP, 2 recording rules + 2 alerting rules chargées et visibles dans l'UI via port-forward.
+- [x] 02/08/2026 : **Arrêt gracieux SIGTERM** implémenté dans l'appli Go (`signal.NotifyContext`, propagation du ctx dans `conn.Read`, `defer close(channel)`, struct déclarée dans la boucle). Image `0.2` buildée et poussée sur `ghcr.io/rysekk/low-latency-observability`.
+- [x] 10/08/2026 : **Grafana migré dans le cluster** : 3 ConfigMaps (datasource `uid: prometheus` + URL FQDN, dashboard provider `path: /var/lib/grafana/dashboards`, dashboards JSON), Deployment (`runAsUser: 472`, `readOnlyRootFilesystem: true`, emptyDir sur `/var/lib/grafana` et `/tmp`), Service ClusterIP. Datasource testée verte, dashboard `Pipeline Latency / SLO` chargé par provisioning et affichant la donnée via port-forward. Débogage : `ContainerCreating` (nom de ConfigMap erroné) diagnostiqué via `kubectl describe` ; chemins d'écriture sous rootfs read-only découverts via les logs. Piège format dashboard V1/V2 tranché empiriquement : seul l'export API est provisionnable.
 
 ---
 
 ## 🔨 En cours
 
-**Étape actuelle :** Migration Kubernetes (k3d local)
-**Objectif :** Déployer la stack complète (appli Go + Prometheus + Grafana) sur k3d
-**Où j'en suis :** Appli Go et Prometheus tournent dans le namespace `trading-app`.
-Scrape OK, recording + alerting rules chargées. Accès via `kubectl port-forward`.
-Deux dettes ouvertes sur Prometheus : resources sous-dimensionnées (copiées de l'appli Go,
-OOMKill probable) et `emptyDir` qui fait perdre le TSDB à chaque redéploiement.
-Image encore en 0.1 (sans le fix SIGTERM) → mesure du trou de déploiement pas encore faite.
-**Prochain sous-pas :** Migrer Grafana (ConfigMaps datasource + provider + dashboard, Deployment, Service).
+**Étape actuelle :** Clôture de la migration Kubernetes (k3d local)
+**Objectif :** Stack complète (appli Go + Prometheus + Grafana) déployée sur k3d, provisionnée as code
+**Où j'en suis :** Les trois composants tournent dans le namespace `trading-app`. Appli Go en image `0.2`
+(fix SIGTERM). Prometheus scrape l'appli, recording + alerting rules chargées. Grafana provisionné
+(datasource + provider + dashboard), panel `pipeline_latency_p99` affichant la donnée. Accès via
+`kubectl port-forward`. La chaîne complète Go → Prometheus → Grafana est opérationnelle dans le cluster.
+**Dettes ouvertes à traiter avant de clore proprement l'étape :**
+- Prometheus toujours sur `emptyDir` → TSDB perdu à chaque redéploiement, SLO 30j fictif tant qu'il n'y a pas de PVC.
+- `requests.memory` Prometheus (64Mi) encore hérité, non calé sur une conso réelle mesurée (à revoir avec le PVC).
+- Grafana aussi sur `emptyDir` (`/var/lib/grafana`) → base SQLite perdue au redémarrage ; acceptable car dashboards provisionnés as code, mais à garder en tête.
+- Mesure du trou de déploiement (avant/après SIGTERM) pas encore faite.
+**Prochain sous-pas :** Remplacer les `emptyDir` par des PVC (StorageClass `local-path`), en commençant par Prometheus.
 
 ---
 
 ## 🔜 Prochaines étapes identifiées (Backlog)
 
 ### Court terme (clôture de l'étape K8s)
-- [ ] Migrer Grafana sur le cluster (provisioning as code via ConfigMaps)
+- [ ] Remplacer `emptyDir` par un PVC (StorageClass `local-path`), Prometheus en priorité, sans ça SLO 30j fictif
+- [ ] Recalibrer le `requests.memory` de Prometheus sur une conso réelle une fois le TSDB persistant
 - [ ] Mesurer le trou de déploiement (`rate(ingest_message_receive_total[1m])`), avant/après SIGTERM
 - [ ] surveiller `container_cpu_cfs_throttled_seconds_total`
-- [ ] Remplacer `emptyDir` par un PVC (StorageClass `local-path`), sans ça, SLO 30j fictif
 - [ ] Nettoyer les manifests : noms de ports, cohérence des labels
 - [ ] Bloc `global` explicite dans prometheus.yml
 
@@ -89,7 +97,7 @@ Image encore en 0.1 (sans le fix SIGTERM) → mesure du trou de déploiement pas
 - [ ] Gauge d'état de connexion WS + alerte associée
 - [ ] Probes : liveness sur la santé WS (⚠️ /metrics doit rester scrapable en permanence)
 - [ ] Alertmanager pour router les alertes (email/Slack)
-- [ ] Dashboard SLO + error budget (une fois l'appli en H24)
+- [ ] Dashboard SLO + error budget (une fois l'appli en H24), enrichir via le workflow copie bac-à-sable → export API → ConfigMap
 - [ ] Logging structuré (JSON) pour Loki
 
 ### Code Go (v0.3)
@@ -102,7 +110,7 @@ Image encore en 0.1 (sans le fix SIGTERM) → mesure du trou de déploiement pas
 - [ ] `kubernetes_sd_config` + RBAC au lieu de `static_configs`
 - [ ] CI/CD : GitHub Actions (build, test, lint, push image)
 - [ ] IaC : Terraform
-- [ ] GitOps : ArgoCD ou Flux
+- [ ] GitOps : ArgoCD ou Flux, les ConfigMaps Grafana (datasource/provider/dashboards) rentreront dans le périmètre synchronisé, pas de chantier dashboard séparé
 - [ ] Chaos / résilience : injection de pannes + post-mortems
 
 ### ✔️ Fait
@@ -113,6 +121,7 @@ Image encore en 0.1 (sans le fix SIGTERM) → mesure du trou de déploiement pas
 - [x] Migration K8s : appli Go + Prometheus
 - [x] Build + push image `0.2` (fix SIGTERM)
 - [x] Recalibrer les resources Prometheus (memory-bound, bursty → pas de limite CPU)
+- [x] Migrer Grafana sur le cluster (provisioning as code via ConfigMaps)
 
 ---
 
@@ -123,8 +132,9 @@ Image encore en 0.1 (sans le fix SIGTERM) → mesure du trou de déploiement pas
 - [X] Vérifier la version min de Go exigée par coder/websocket
 - [x] Créer le repo git distant sur GitHub (Rysekk) et pousser
 - [x] Réfléchir : un SLO qu'on ne risque jamais de violer est-il utile ? Envisager seuil warning + critical
-- [~] Apprendre PromQL — en cours (rate, histogram_quantile, recording/alerting rules acquis)
+- [~] Apprendre PromQL, en cours (rate, histogram_quantile, recording/alerting rules acquis)
 - [ ] Gérer le warmup Go (p99 plus élevé au démarrage), chauffer l'appli avant exposition ?
+- [ ] Reconnaître un JSON de dashboard provisionnable : quels marqueurs distinguent le V1 (`panels`, `schemaVersion`) du V2 (`elements`, `layout`, `vizConfig`, ou enveloppe `apiVersion`/`kind`/`metadata`) ?
 
 ---
 
@@ -136,3 +146,6 @@ Image encore en 0.1 (sans le fix SIGTERM) → mesure du trou de déploiement pas
 - **Backpressure + arbitrage block vs drop** : Comme nous allons ingérer un grand volume de données, une forte backpressure peut apparaître. Si le buffer est plein, la goroutine se bloque et aucune nouvelle donnée n'est ingérée tant qu'il ne se vide pas. Dans notre cas, nous privilégions des données fraîches : il est donc préférable de supprimer (drop) certaines données plutôt que de bloquer entièrement le pipeline.
 - **Channel Go**: Un channel go est un tuyaux qui sert de buffer pour un nombre données de valeur (ici 128) et qui traite les données en mode FIFO et qui bloque l'ecriture dedant quand le channel est plein et la lecture quand c'est vide.
 - **Channel Go = file d'attente + synchronisation (bloque plein/vide)** : Mise en place d'un channel pour faire transitionné les données reçus de la websocket vers la pipeline de traitement. Nous utilisons un `select` avec `default` : si le buffer est plein, le message est drop plutôt que de bloquer la lecture et incrementé un compteur que l'on pourras utiliser comme metrique pour savoir si notre buffer est congestionné.
+- **Provisioning Grafana as code** : Découpage des ConfigMaps par chemin de montage. Dans la ConfigMap de la datasource Prometheus, nous avons utilisé le DNS interne k8s et son FQDN (`prometheus.trading-app:9090`), ce qui permet de contacter le pod de façon stable, y compris depuis un autre namespace. Mise en place d'un UID de datasource fixe pour le versionning (le dashboard référence la datasource par cet UID ; sans UID fixe, chaque instance Grafana en génère un aléatoire et le dashboard ne retrouve plus sa datasource).
+- **Déploiement de Grafana** : l'option `readOnlyRootFilesystem: true` impose de couvrir tous les chemins d'écriture (`/var/lib/grafana`, `/tmp`) par des volumes inscriptibles. Les chemins ont été découverts empiriquement via les logs sous rootfs read-only. Pour les montages imbriqués, k8s applique toujours le parent avant l'enfant (tri par profondeur de chemin, pas par ordre de déclaration YAML), ce qui garantit que la ConfigMap dashboards montée sur `/var/lib/grafana/dashboards` n'est pas écrasée par l'emptyDir parent. UID d'exécution propre à chaque image (Grafana = 472, ≠ nobody 65534).
+- **Versionning des dashboards** : seul l'export via l'API classique (`/api/dashboards/uid/<UID>` + `jq '.dashboard'`) produit un JSON relisible par le classic-file-provisioning. Les exports de l'UI Grafana 13 (« classic » comme V2) produisent le schéma V2 (`elements`/`layout`) que le provisioning par fichier ne charge pas.
