@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: grafana
+  name: grafana
+  namespace: trading-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472
+        runAsGroup: 472
+        fsGroup: 472
+      containers:
+      - image: grafana/grafana:13.0
+        name: grafana
+        env:
+        - name: GF_AUTH_ANONYMOUS_ENABLED
+          value: "true"
+        - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+          value: "Admin"
+        - name: GF_AUTH_DISABLE_LOGIN_FORM
+          value: "true"
+        ports:
+        - name: grafana
+          containerPort: 3000
+        volumeMounts:
+          - name: datasource
+            mountPath: /etc/grafana/provisioning/datasources
+          - name: provider
+            mountPath: /etc/grafana/provisioning/dashboards
+          - name: dashboard
+            mountPath: /var/lib/grafana/dashboards
+          - name: grafana-data
+            mountPath: /var/lib/grafana
+          - name: grafana-tmp
+            mountPath: /tmp
+        resources:
+          requests:
+            memory: "150Mi"
+            cpu: "500m"
+          limits:
+            memory: "512Mi"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+      volumes:
+        - name: datasource
+          configMap:
+            name: grafana-datasource
+        - name: provider
+          configMap:
+            name: grafana-provider
+        - name: dashboard
+          configMap:
+            name: grafana-dashboards
+        - name: grafana-data
+          emptyDir: {}
+        - name: grafana-tmp
+          emptyDir: {}
