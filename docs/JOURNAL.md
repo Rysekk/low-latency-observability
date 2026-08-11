@@ -45,6 +45,8 @@ Vue d'ensemble des briques prévues. Coche au fur et à mesure.
 | 10/08/2026 | Provisioning Grafana = **3 ConfigMaps** (datasource / provider / dashboards JSON), une par répertoire de montage | Le critère = chemin de montage, le `path` du provider doit matcher le mountPath de la ConfigMap dashboards |
 | 10/08/2026 | Grafana : `runAsUser: 472`, `readOnlyRootFilesystem: true` + emptyDir sur `/var/lib/grafana` et `/tmp` | L'UID 472 imposé par l'image, le chemins d'écriture découverts empiriquement via les logs sous `readOnlyRootFilesystem: true` (read-only) |
 | 10/08/2026 | Dashboards récupérés **exclusivement via l'API classique** (`/api/dashboards/uid/<UID>` + `jq '.dashboard'`), jamais via l'export UI Grafana 13 | L'export UI de Grafana 13 (« classic » comme V2) produit le schéma V2 (`elements`/`layout`), qui ne se charge pas quand on le met dans une ConfigMap ; seul l'export API produit un JSON provisionnable. Workflow d'itération : copie bac-à-sable non-provisionnée → export API → réalignement de l'UID → ConfigMap |
+| 11/08/2026 | PVC dynamique `local-path` pour le TSDB Prometheus (abandon du PV statique `hostPath`/`manual`) | PV statique met le pod en crashloop lorsque qu'il n'est pas placer sur le même noeud que le pv. Le PVC Dynamique régle ce soucis, le pods est scheduler d'abord, le PV est ensuite créé sur le bon noeud avec une node affinity, c'est cette affinity du PV qui contraint le scheduler à ramener le pod vers le volume. |
+| 11/08/2026 | PVC `local-path` sur `/var/lib/grafana`, bascule assumée vers un modèle **hybride** : dashboards provisionnés (ConfigMap, lecture seule, autorité = Git) + dashboards UI (SQLite, autorité = base) | Pour les besoins de construction des dashboards, on laisse la possibilité de créer des dashboards directement depuis l’UI et de les sauvegarder via un PVC dynamique. Une fois qu’un dashboard est finalisé, il peut être transformé en code. |
 
 ---
 
@@ -60,30 +62,28 @@ Vue d'ensemble des briques prévues. Coche au fur et à mesure.
 - [x] 02/08/2026 : **Prometheus migré dans le cluster** : ConfigMap (prometheus.yml + rules.yml) montée en volume, Deployment + Service ClusterIP, volume `emptyDir` pour le TSDB. Target `ingest-app` UP, 2 recording rules + 2 alerting rules chargées et visibles dans l'UI via port-forward.
 - [x] 02/08/2026 : **Arrêt gracieux SIGTERM** implémenté dans l'appli Go (`signal.NotifyContext`, propagation du ctx dans `conn.Read`, `defer close(channel)`, struct déclarée dans la boucle). Image `0.2` buildée et poussée sur `ghcr.io/rysekk/low-latency-observability`.
 - [x] 10/08/2026 : **Grafana migré dans le cluster** : 3 ConfigMaps (datasource `uid: prometheus` + URL FQDN, dashboard provider `path: /var/lib/grafana/dashboards`, dashboards JSON), Deployment (`runAsUser: 472`, `readOnlyRootFilesystem: true`, emptyDir sur `/var/lib/grafana` et `/tmp`), Service ClusterIP. Datasource testée verte, dashboard `Pipeline Latency / SLO` chargé par provisioning et affichant la donnée via port-forward. Débogage : `ContainerCreating` (nom de ConfigMap erroné) diagnostiqué via `kubectl describe` ; chemins d'écriture sous rootfs read-only découverts via les logs. Piège format dashboard V1/V2 tranché empiriquement : seul l'export API est provisionnable.
+- [x] 11/08/2026 : **TSDB Prometheus persistant.** PVC dynamique (`local-path`, `WaitForFirstConsumer`), PV généré automatiquement (200Mi, node affinity `agent-1` injectée), `emptyDir` remplacé, `readOnlyRootFilesystem: true` conservé, rétention `30d` active. Détour pédagogique par un PV statique manuel → crashloop (pod `agent-1` / PV `server-0`) → diagnostic : `hostPath` sans node affinity cloue le volume à un nœud. Test destructif validé (`delete pod` → `WAL replay completed`). **Démarrage réel de la fenêtre SLO 30 jours.**
+- [x] 11/08/2026 : **PVC Grafana + modèle hybride de dashboards.** PVC `local-path` (200Mi) sur `/var/lib/grafana`, `emptyDir` conservé sur `/tmp`. Motivation : ouvrir la création de dashboards à l'UI (édition JSON à la main impraticable) → la SQLite devient autoritative pour ces dashboards, donc persistée. Deux sources de vérité assumées : provisionné = Git (lecture seule), UI = SQLite. Test de persistance UI validé (création dashboard UI → `delete pod` → dashboard survivant).
 
 ---
 
 ## 🔨 En cours
 
-**Étape actuelle :** Clôture de la migration Kubernetes (k3d local)
-**Objectif :** Stack complète (appli Go + Prometheus + Grafana) déployée sur k3d, provisionnée as code
-**Où j'en suis :** Les trois composants tournent dans le namespace `trading-app`. Appli Go en image `0.2`
-(fix SIGTERM). Prometheus scrape l'appli, recording + alerting rules chargées. Grafana provisionné
-(datasource + provider + dashboard), panel `pipeline_latency_p99` affichant la donnée. Accès via
-`kubectl port-forward`. La chaîne complète Go → Prometheus → Grafana est opérationnelle dans le cluster.
-**Dettes ouvertes à traiter avant de clore proprement l'étape :**
-- Prometheus toujours sur `emptyDir` → TSDB perdu à chaque redéploiement, SLO 30j fictif tant qu'il n'y a pas de PVC.
-- `requests.memory` Prometheus (64Mi) encore hérité, non calé sur une conso réelle mesurée (à revoir avec le PVC).
-- Grafana aussi sur `emptyDir` (`/var/lib/grafana`) → base SQLite perdue au redémarrage ; acceptable car dashboards provisionnés as code, mais à garder en tête.
-- Mesure du trou de déploiement (avant/après SIGTERM) pas encore faite.
-**Prochain sous-pas :** Remplacer les `emptyDir` par des PVC (StorageClass `local-path`), en commençant par Prometheus.
+## 🔨 En cours
 
+**Étape actuelle :** Migration Kubernetes (k3d) — **close**. Ouverture de l'étape « Exposition des services ».
+**Objectif de la nouvelle étape :** Remplacer les `kubectl port-forward` (tunnel de debug jetable, mono-utilisateur) par une exposition stable des UI (app, Prometheus, Grafana).
+**Où j'en suis :** Cluster fonctionnel, trois composants dans `trading-app`, état autoritatif persistant (TSDB + SQLite Grafana sur PVC). Tout l'accès externe passe encore par port-forward. Traefik désactivé sur le cluster → pas d'Ingress Controller actif à ce stade.
+**Décisions à trancher avant de coder :**
+- NodePort jetable (sentir le mécanisme) puis Ingress, ou Ingress directement.
+- Contrôleur d'Ingress : réactiver Traefik (rapide) ou installer ingress-nginx (plus formateur CKA).
+- Périmètre d'exposition : quelles UI ouvrir, lesquelles garder internes (Prometheus en accès libre ?).
+**Dettes de durcissement renvoyées au backlog (hors périmètre de la nouvelle étape) :** recalibration mémoire Prometheus, mesure du trou de déploiement SIGTERM, self-scrape Prometheus, réconciliation dashboard UI → Git, replicas/HPA.
 ---
 
 ## 🔜 Prochaines étapes identifiées (Backlog)
 
 ### Court terme (clôture de l'étape K8s)
-- [ ] Remplacer `emptyDir` par un PVC (StorageClass `local-path`), Prometheus en priorité, sans ça SLO 30j fictif
 - [ ] Recalibrer le `requests.memory` de Prometheus sur une conso réelle une fois le TSDB persistant
 - [ ] Mesurer le trou de déploiement (`rate(ingest_message_receive_total[1m])`), avant/après SIGTERM
 - [ ] surveiller `container_cpu_cfs_throttled_seconds_total`
@@ -122,6 +122,8 @@ Vue d'ensemble des briques prévues. Coche au fur et à mesure.
 - [x] Build + push image `0.2` (fix SIGTERM)
 - [x] Recalibrer les resources Prometheus (memory-bound, bursty → pas de limite CPU)
 - [x] Migrer Grafana sur le cluster (provisioning as code via ConfigMaps)
+- [x] Remplacer `emptyDir` par un PVC (StorageClass `local-path`), Prometheus en priorité, sans ça SLO 30j fictif
+
 
 ---
 
