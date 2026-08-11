@@ -67,6 +67,7 @@ spec:
           configMap:
             name: grafana-dashboards
         - name: grafana-data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: pvc-grafana
         - name: grafana-tmp
           emptyDir: {}
