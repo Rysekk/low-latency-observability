@@ -19,6 +19,7 @@
 | [21](#21-dashboard-export-through-the-classic-api-only) | Aug 10 | Dashboard export through the API only |
 | [22](#22-dynamic-pvc-instead-of-a-static-hostpath-pv) | Aug 11 | Dynamic PVC instead of static PV |
 | [23](#23-grafana-pvc-and-hybrid-dashboard-model) | Aug 11 | Grafana PVC and hybrid model |
+| [24](#24-ingress-through-a-manually-installed-traefik) | Aug 15 | Ingress through a manually installed Traefik |
 | [-](#conventions) | - | Conventions |
 
 ---
@@ -168,6 +169,26 @@
 **Exit rule**: a dashboard considered final is exported through the API ([ADR 21](#21-dashboard-export-through-the-classic-api-only)) and moves to the Git side. The PVC is a workspace, not permanent storage.
 
 **Named risk**: without discipline on the exit rule, SQLite becomes unversioned state that nobody knows how to rebuild.
+
+## 24. Ingress through a manually installed Traefik
+
+**Context**: services were reachable through `kubectl port-forward` only, which is a per-developer, per-session workaround rather than an exposure model.
+
+**Decision**: expose Prometheus and Grafana through Ingress resources, served by a Traefik installed from the upstream Helm chart with a versioned values file, and disable the Traefik bundled with k3s.
+
+**Rationale**: nothing here is a technical necessity. The k3s-bundled Traefik serves Ingress correctly and would have required no installation step at all. Installing it manually buys two things instead: the chart version is pinned in the repository rather than tied to whatever k3s ships, and the values file becomes a reviewable artifact that falls inside the GitOps scope alongside the Grafana ConfigMaps. Setting up an ingress controller by hand is also the practice this project exists for.
+
+**Primary driver**: <!-- pick one and delete the other
+  version control and GitOps readiness; hands-on practice is a welcome side effect
+  hands-on practice; version pinning is a welcome side effect
+-->
+
+**Discarded alternative, NodePort as an intermediate step**: exposing a NodePort first would have shown the raw mechanism, a port opened on every node and forwarded to the Service, before layering host-based routing on top. It was skipped deliberately. NodePort is not the target model, it would have been thrown away within the same session, and the concept is simple enough to be understood without being run. What is given up is seeing the plain Service-to-node-port mapping in isolation, before Traefik's routing hides it.
+
+**Accepted downside**: one more component to install, upgrade and keep aligned with the cluster, where k3s offered a working default for free. The bundled Traefik remains a valid fallback and is documented as such in the README.
+
+**Constraint carried over**: the k3d load balancer must map host port 80 at cluster creation, or the Traefik `LoadBalancer` Service stays unreachable regardless of how it was installed. This is a property of the k3d topology, not of the ingress controller.
+
 
 ---
 
