@@ -14,7 +14,7 @@
 
 - [ ] **Have Prometheus scrape itself**: `prometheus_tsdb_head_series`, RSS. An unobserved observability system is a blind spot
 - [ ] **No-data alert**: `absent_over_time(ingest_message_receive_total[5m])`. This is the safety net that makes the trade-off in [ADR 11](decisions.md#11-strategy-recreate) defensible, since the gap is only acceptable if it is detected
-- [ ] `ingest_parse_errors_total` counter plus `continue` after a parse error (parse failures are currently not counted)
+- [x] `ingest_parse_errors_total` counter plus `continue` after a parse error
 - [ ] WebSocket connection state gauge and matching alert
 - [ ] Liveness probe on WebSocket health. Note that `/metrics` must stay scrapable at all times, including during degradation
 - [ ] Alert on pods stuck in `Pending`, which is how a node loss surfaces once volumes are pinned by node affinity. A component that never schedules produces no metrics at all, so the no-data alert catches the symptom without naming the cause
@@ -26,6 +26,7 @@
 
 - [ ] Retry with exponential backoff on WebSocket reconnection
 - [ ] Explicit `http.Server` with `Shutdown(ctx)`, aligning metrics server shutdown with ingestion shutdown
+- [ ] Version Go v0.3 with processing : conversion string→number of Price and Quantity for the first step of the processing stage, implies a choice between 2 type : float64 or number with exact decimal (ADR).Adds a second parse-error path to count.
 - [~] Split into packages: `ingestion`, `metrics`, `config`
 
 ## Platform

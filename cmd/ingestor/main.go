@@ -54,6 +54,15 @@ func httpPrometheusExporter() {
 	log.Fatalln(http.ListenAndServe(":8080", nil))
 }
 
+func parseAggTrade(msg []byte) (AggTrade, error) {
+	var aggTrade AggTrade
+	err := json.Unmarshal(msg, &aggTrade)
+	if err != nil {
+		return AggTrade{}, err
+	}
+	return aggTrade, nil
+}
+
 func main() {
 	metricDuration := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -97,9 +106,8 @@ func main() {
 	go readStream(ctx, channel, conn, messageDropped, messageReceive)
 	go httpPrometheusExporter()
 	for msg := range channel {
-		var aggTrade AggTrade
 		pipelineStart := time.Now()
-		err := json.Unmarshal(msg, &aggTrade)
+		_, err := parseAggTrade(msg)
 		if err != nil {
 			log.Printf("Json Parsing Error %v", err)
 			parseError.Inc()
