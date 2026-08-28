@@ -28,7 +28,7 @@ func TestParseAggTrade(t *testing.T) {
 		{
 			name:    "empty json",
 			input:   []byte(`{}`),
-			wantErr: false,
+			wantErr: true,
 		},
 	}
 
