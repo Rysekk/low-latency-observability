@@ -96,6 +96,7 @@ With a single replica and `maxSurge: 1`, a rolling update opens two Binance WebS
 | **Aug 10** | Grafana provisioned as code, read-only root filesystem |
 | **Aug 11** | Persistent volumes (dynamic PVCs), start of the real SLO window |
 | **Aug 15** | Exposure through Ingress and Traefik, port-forwards retired |
+| **Aug 28** | CI GitHub Actions green tests on push on the main branch |
 
 ---
 
