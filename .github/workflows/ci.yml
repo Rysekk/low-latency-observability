@@ -2,17 +2,21 @@ name: CI
 
 on:
   push:
-    branches: [main]      # sur quelle branche ?
+    branches: [main]      # On witch branch
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4        # récupère ton code sur la machine
+      - uses: actions/checkout@v4        # Get codebase
 
-      - uses: actions/setup-go@v5        # installe Go
+      - uses: actions/setup-go@v5        # instal Go
         with:
-          go-version: '1.26.5'              # quelle version ? regarde ton go.mod
-
+          go-version: '1.26.5'          
+      
+      - name: lint                       # Lint
+        run: go vet ./...
+      
       - name: Run tests
-        run: go test ./...                       # la commande qui lance tes tests
+        run: go test ./...               # test
+      
