@@ -5,11 +5,11 @@ on:
     branches: [main]      # On witch branch
 
 jobs:
-  lintAndTint:
+  lintAndTest:
     runs-on: ubuntu-24.04
     
     steps:
-      - uses: actions/checkout@v4        # Get codebase
+      - uses: actions/checkout@v7        # Get codebase
 
       - uses: actions/setup-go@v7        # instal Go
         with:
@@ -23,14 +23,14 @@ jobs:
   
   
   build-push:
-    needs: lintAndTint
+    needs: lintAndTest
     runs-on: ubuntu-24.04
     
     permissions:
       packages: write
 
     steps:
-      - name: Login to Docker Hub
+      - name: Login to Github pkgs
         uses: docker/login-action@v4
         with:
           registry: ghcr.io

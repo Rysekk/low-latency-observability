@@ -29,7 +29,6 @@
 
 ## Platform
 
-- [ ] **CI/CD with GitHub Actions**: build, test, lint, push image. Replace the manual tag with the commit SHA to tie image to exact code
 - [ ] **IaC with Terraform**: reusable modules
 - [ ] **GitOps** with ArgoCD or Flux. The Grafana ConfigMaps (datasource, provider, dashboards) fall inside the synced scope
 - [ ] **Chaos and resilience**: fault injection and post-mortems. The node affinity crashloop from [ADR 22](decisions.md#22-dynamic-pvc-instead-of-a-static-hostpath-pv) is a first case worth writing up
