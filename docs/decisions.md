@@ -178,16 +178,25 @@
 
 **Rationale**: nothing here is a technical necessity. The k3s-bundled Traefik serves Ingress correctly and would have required no installation step at all. Installing it manually buys two things instead: the chart version is pinned in the repository rather than tied to whatever k3s ships, and the values file becomes a reviewable artifact that falls inside the GitOps scope alongside the Grafana ConfigMaps. Setting up an ingress controller by hand is also the practice this project exists for.
 
-**Primary driver**: <!-- pick one and delete the other
-  version control and GitOps readiness; hands-on practice is a welcome side effect
-  hands-on practice; version pinning is a welcome side effect
--->
 
 **Discarded alternative, NodePort as an intermediate step**: exposing a NodePort first would have shown the raw mechanism, a port opened on every node and forwarded to the Service, before layering host-based routing on top. It was skipped deliberately. NodePort is not the target model, it would have been thrown away within the same session, and the concept is simple enough to be understood without being run. What is given up is seeing the plain Service-to-node-port mapping in isolation, before Traefik's routing hides it.
 
 **Accepted downside**: one more component to install, upgrade and keep aligned with the cluster, where k3s offered a working default for free. The bundled Traefik remains a valid fallback and is documented as such in the README.
 
 **Constraint carried over**: the k3d load balancer must map host port 80 at cluster creation, or the Traefik `LoadBalancer` Service stays unreachable regardless of how it was installed. This is a property of the k3d topology, not of the ingress controller.
+
+## 25. Convert string to decimal.Decimal instead of float64.
+
+**Context**: We need to preserve maximum precision for Price and Quantity values since this is a market data application.
+
+**Decision**: Since this is a market data application, we decided to preserve maximum precision for Price and Quantity values. To achieve this, we use shopspring/decimal to convert strings to decimal.Decimal.
+
+**Rationale**: Even though we know this may introduce some additional latency because decimal.Decimal uses big.Int, which is slower and consumes more resources than float64 (not yet measured), this project is focused on monitoring latency. However, we also want to reflect what is used in real-world market data applications. We are conscious that in a real HFT environment, nanosecond-level performance gains may be considered more important than decimal precision.
+
+**Discarded alternatives**: We did not choose float64 with strconv.ParseFloat because we want to avoid losing precision during the conversion. float64 cannot represent all decimal values exactly (e.g. 0.1 + 0.2 != 0.3), and rounding errors can accumulate over multiple trading operations. We also considered using scaled integers as a fixed-point representation. While this approach could provide exact decimal representation with better performance than decimal.Decimal, it would require us to implement and carefully manage the arithmetic operations ourselves. For example, multiplying two scaled values requires correctly handling the resulting scale and rescaling the result. We preferred to use a library that already manages these operations and the associated edge cases rather than implementing and maintaining our own decimal arithmetic.
+
+**Accepted downside**: decimal.Decimal is expected to be slower and consume more resources than float64, so we expect it to have an impact on latency. The actual impact has not yet been measured. We also introduce an additional dependency by using shopspring/decimal, which needs to be maintained and kept up to date, whereas using the native float64 and strconv packages would introduce no external dependencies.
+
 
 
 ---
