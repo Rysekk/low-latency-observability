@@ -47,7 +47,7 @@ jobs:
         with:
           context: build/.
           push: true
-          tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
+          tags: ghcr.io/${{ github.repository_owner }}/low-latency-observability:${{ github.sha }}
 
 
 
