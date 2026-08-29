@@ -25,7 +25,6 @@
 
 - [ ] Retry with exponential backoff on WebSocket reconnection
 - [ ] Explicit `http.Server` with `Shutdown(ctx)`, aligning metrics server shutdown with ingestion shutdown
-- [x] Version Go v0.3 with processing : conversion string→number of Price and Quantity for the first step of the processing stage, implies a choice between 2 type : float64 or number with exact decimal (ADR).Adds a second parse-error path to count.
 - [~] Split into packages: `ingestion`, `metrics`, `config`
 
 ## Platform
