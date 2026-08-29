@@ -97,7 +97,7 @@ With a single replica and `maxSurge: 1`, a rolling update opens two Binance WebS
 | **Aug 11** | Persistent volumes (dynamic PVCs), start of the real SLO window |
 | **Aug 15** | Exposure through Ingress and Traefik, port-forwards retired |
 | **Aug 28** | CI GitHub Actions green tests on push on the main branch |
-| **Aug 29** | Convert trades to domain types (decimal, time.Time), real processing stage, associated tests |
+| **Aug 29** | Convert trades to domain types (decimal, time.Time), real processing stage, associated tests, CI GitHub Actions completed (lint, test, build, push ghcr au SHA), gate needs on the tests job |
 
 ---
 
