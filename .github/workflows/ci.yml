@@ -58,7 +58,7 @@ jobs:
           
           yq -i ".spec.template.spec.containers[0].image = \
           \"ghcr.io/rysekk/low-latency-observability:${{ github.sha }}\"" \
-          deploy/app/deployment.yaml
+          deploy/k8s/app/deployment.yaml
 
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
