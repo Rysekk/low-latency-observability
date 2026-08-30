@@ -24,7 +24,7 @@ spec:
         runAsGroup: 65534
         fsGroup: 65534
       containers:
-        - image: ghcr.io/rysekk/low-latency-observability:c0bf1c1221e10005d77d767d2da44d618e7013cf
+        - image: ghcr.io/rysekk/low-latency-observability:fbb766047a13066b4a1bd2a3178982e21dc8637f
           name: ingest-app
           env:
             - name: GOMEMLIMIT
