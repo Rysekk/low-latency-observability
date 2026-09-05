@@ -30,7 +30,6 @@
 ## Platform
 
 - [ ] **IaC with Terraform**: reusable modules
-- [ ] **GitOps** with ArgoCD or Flux. The Grafana ConfigMaps (datasource, provider, dashboards) fall inside the synced scope
 - [ ] **Chaos and resilience**: fault injection and post-mortems. The node affinity crashloop from [ADR 22](decisions.md#22-dynamic-pvc-instead-of-a-static-hostpath-pv) is a first case worth writing up
 - [ ] `kubernetes_sd_config` with RBAC, replacing `static_configs`
 - [ ] `imagePullSecret` exercise, by switching the package back to private
@@ -42,6 +41,7 @@ Out of scope for now, listed to remove any ambiguity.
 
 | Debt | Scope |
 |---|---|
+| Use GITHUB_TOKEN for no infinite loop | Do not replace the GITHUB_TOKEN in the pipeline with a PAT Token otherwise everything break |
 | Prometheus without access control | Routed by the Ingress, but not protected |
 | Plain HTTP, no TLS | Local exposure only |
 | Grafana in anonymous-admin mode | No authentication |
@@ -54,4 +54,4 @@ Out of scope for now, listed to remove any ambiguity.
 
 ---
 
-*Upkeep rule: a finished step gets ticked here. A non-obvious decision gets an entry in [`decisions.md`](decisions.md). Nothing else needs updating.*
+*Upkeep rule: a finished step gets ticked here and is removed. A non-obvious decision gets an entry in [`decisions.md`](decisions.md). Nothing else needs updating.*

@@ -197,6 +197,53 @@
 
 **Accepted downside**: decimal.Decimal is expected to be slower and consume more resources than float64, so we expect it to have an impact on latency. The actual impact has not yet been measured. We also introduce an additional dependency by using shopspring/decimal, which needs to be maintained and kept up to date, whereas using the native float64 and strconv packages would introduce no external dependencies.
 
+## 26. ArgoCD over Flux.
+
+**Context**: Needed to choose a Gitops tools and it have been decided to choose ArgoCD over Flux.
+
+**Decision**: We decided to use ArgoCD instead of Flux, even though Flux is more lightweight.
+
+**Rationale**: We chose ArgoCD because it is more widely used in enterprise environments, which better aligns with the goal of this project.
+
+**Discarded alternatives**: We considered Flux even if it is lightweight and closer to the Unix spirit but less visible in enterprise, but decided not to use it because ArgoCD is more widely adopted in enterprise environments and makes more sense in a portfolio application.
+
+**Accepted downside**: ArgoCD is heavier than Flux, consumes more resources, and introduces additional components such as a UI and CRDs.
+
+## 27. SHA tag: CI over Argo Image Updater
+
+**Context**: When building the Docker image and publishing it to GHCR, we need to tag the image with the SHA of the commit.
+
+**Decision**: We decided to use the CI pipeline to tag the Docker image with the commit SHA.
+
+**Rationale**: We chose the CI because it is more lightweight than Argo Image Updater. The image is built and published in the CI pipeline when a commit is made, so there is no asynchronous process that could cause conflicts or inconsistencies in the repository.
+
+**Discarded alternatives**: Argo Image Updater is useful because it separates image publishing from the deployment process. However, for a small project like this, it adds unnecessary complexity and resource consumption. Using the CI pipeline is sufficient for our needs.
+
+**Accepted downside**: Using the CI pipeline couples the image build and tagging process to the CI workflow using the GITHUB_TOKEN do not trigger the CI in a infinit loop. A more advanced setup could separate these responsibilities using Argo Image Updater, but this is not necessary for the current scope of the project.
+
+## 28. App-of-apps vs manual Application
+
+**Context**: We initially discarded the App-of-Apps pattern because of its impact on application visibility. As the GitOps setup evolved, we decided to prioritize having the whole ArgoCD configuration managed through Git.
+
+**Decision**: We decided to use the App-of-Apps pattern to manage ArgoCD Applications.
+
+**Rationale**: App-of-Apps allows all Applications to be declared and managed from Git, which is more consistent with our GitOps approach and avoids manually creating Applications in ArgoCD
+
+**Discarded alternatives**: Manually managing each Application would provide better visibility and would be simpler for a small number of applications, but it would introduce manual configuration outside Git.
+
+**Accepted downside**: App-of-Apps adds a level of indirection and cascading deletion (pruning the root can uninstall a component) instead to managing Applications individually. If the number of Applications grows, we may consider using ApplicationSet instead.
+
+## 29. Treafik under ArgoCD
+
+**Context**: We need to deploy Traefik as the ingress controller for the Kubernetes cluster. We considered deploying it through an imperative bootstrap process or managing it through ArgoCD.
+
+**Decision**: We decided to manage Traefik through ArgoCD as an Application, using a multi-source configuration with $values.
+
+**Rationale**: We chose to manage Traefik through ArgoCD to keep the cluster configuration declarative and managed through GitOps. This avoids having part of the cluster infrastructure managed outside ArgoCD and keeps the deployment configuration versioned in Git.
+
+**Discarded alternatives**: We considered bootstrapping Traefik imperatively before ArgoCD. This would make Traefik available earlier in the cluster bootstrap process, but would introduce a manually managed component outside the GitOps workflow.
+
+**Accepted downside**: Traefik is not available until the ArgoCD root Application has been synchronized and the Traefik Application has been deployed. This introduces an ordering dependency during the initial bootstrap: ArgoCD must be available and synchronized before Traefik can provide ingress.
 
 
 ---
