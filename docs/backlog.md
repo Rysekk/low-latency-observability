@@ -20,6 +20,7 @@
 - [ ] Alertmanager for alert routing (email or Slack)
 - [ ] SLO and error budget burn dashboard, which requires the application running continuously
 - [ ] Structured JSON logging, in preparation for Loki
+- [ ] Build a dashboard for le SLO and metric exposed by the go application
 
 ## Go application, v0.3
 
