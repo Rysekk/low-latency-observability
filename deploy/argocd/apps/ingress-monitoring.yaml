@@ -1,14 +1,20 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: prometheus
+  name: ingress-monitoring
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: https://github.com/Rysekk/low-latency-observability
     targetRevision: main
-    path: deploy/k8s/monitoring/prometheus/
+    path: deploy/k8s/monitoring/ingress/
   destination:
     server: https://kubernetes.default.svc
     namespace: trading-app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
