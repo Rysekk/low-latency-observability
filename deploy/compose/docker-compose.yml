@@ -28,7 +28,7 @@ services:
     ports:
     - "9090:9090"
 
-  low-latency-app:
+  trading-app:
     build: 
       context: ../..
       dockerfile: build/Dockerfile
