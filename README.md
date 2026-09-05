@@ -99,6 +99,7 @@ With a single replica and `maxSurge: 1`, a rolling update opens two Binance WebS
 | **Aug 28** | CI GitHub Actions green tests on push on the main branch |
 | **Aug 29** | Convert trades to domain types (decimal, time.Time), real processing stage, associated tests, CI GitHub Actions completed (lint, test, build, push ghcr au SHA), gate needs on the tests job |
 | **Aug 30** | CI to GitOps completed, build docker image with SHA commit as a tag, deploy in the cluster automaticaly with ArgoCD |
+| **Sep 5** | app-of-apps ArgoCD, and auto GitOps (prune and selfHeal) on the stack and add path to the ci to build only when the application code change, Makefile have been reduced to a bootstrap role with kubectl wait. Bootstrap validate from scratch with a new cluster |
 
 ---
 
