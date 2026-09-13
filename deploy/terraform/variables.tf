@@ -23,6 +23,11 @@ variable "oci_private_key_path" {
     type    = string
 }
 
+variable "ssh_public_key_path" {
+    description = "Local folder of the OCI API public key"
+    type    = string
+}
+
 variable "my_ip" {
     description = "My public ipv4"
     type    = string
