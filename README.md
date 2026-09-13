@@ -153,6 +153,7 @@ The ingress controller is an ArgoCD Application using a multi-source Helm setup 
 | **Aug 29** | Trades converted to domain types (`decimal.Decimal`, `time.Time`), real processing stage and its tests. CI completed: lint, test, build, push to GHCR at the commit SHA, build gated on the test job |
 | **Aug 30** | CI to GitOps closed: image tagged with the commit SHA, manifest bumped by the pipeline, deployed by ArgoCD |
 | **Sep 05** | ArgoCD app-of-apps, automated sync (`prune` and `selfHeal`) across the whole stack. Traefik moved under ArgoCD, `namespace.yaml` removed in favour of `CreateNamespace=true`. CI path filter so only application changes trigger a build. Makefile reduced to a bootstrap role with `kubectl wait`, validated from scratch on a fresh cluster |
+| **Sep 13** | Start of the Terraform IaC with the setup of the Oracle cloud provider and initiated the networking |
 
 ---
 

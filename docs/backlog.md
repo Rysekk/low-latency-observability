@@ -31,7 +31,7 @@
 
 ## Platform
 
-- [ ] **Infrastructure & Provisioning**: Oracle VM via Terraform (reusable modules) and k3s + cloud-init
+- [~] **Infrastructure & Provisioning**: Oracle VM via Terraform (reusable modules) and k3s + cloud-init
 - [ ] **Deployment**: Kustomize strategy with dev/prod overlays
 - [ ] **CI/CD**: Multi-arch image builds (amd64 / arm64) — the current amd64 scratch image will fail on arm64 nodes
 - [ ] **Security**: TLS + private exposure for Grafana and Prometheus
