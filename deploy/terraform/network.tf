@@ -39,6 +39,12 @@ resource "oci_core_security_list" "security_list" {
       max=22
     }
   }
+  egress_security_rules {
+		destination = "0.0.0.0/0"
+		protocol = "all"
+    destination_type = "CIDR_BLOCK"
+    stateless = false
+  }
 }
 
 resource "oci_core_subnet" "subnet" {

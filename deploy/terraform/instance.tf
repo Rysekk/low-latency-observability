@@ -20,6 +20,11 @@ resource "oci_core_instance" "ubuntu_instance" {
     }
     metadata = {
         ssh_authorized_keys = file("${var.ssh_public_key_path}")
+        user_data = "${base64encode(file("${path.module}/cloud-init.yaml"))}"
     } 
     preserve_boot_volume = false
+}
+
+output "instance_ip_public" {
+  value     = oci_core_instance.ubuntu_instance.public_ip
 }

@@ -1,0 +1,60 @@
+#cloud-config
+
+# Mise à jour des paquets existants
+package_update: true
+package_upgrade: true
+
+packages:
+  - make
+
+write_files:
+  # K3s server configuration
+  - path: /etc/rancher/k3s/config.yaml
+    permissions: '0644'
+    content: |
+      write-kubeconfig-mode: "0644"
+
+      # Désactiver les add-ons par défaut
+      disable:
+        - traefik
+        - servicelb
+    
+    # install script
+  - path: /usr/local/bin/install-k3s.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      # Install K3s server
+      curl -sfL https://get.k3s.io | \
+        INSTALL_K3S_CHANNEL=stable \
+        sh -
+
+      # Wait for K3s to be ready
+      until kubectl get nodes 2>/dev/null | grep -q Ready; do
+        sleep 5
+        echo "Waiting for K3s to be ready..."
+      done
+
+      echo "K3s server is ready!"
+      kubectl get nodes
+
+# Commandes à exécuter (stage Final)
+runcmd:
+  - /usr/local/bin/install-k3s.sh
+
+  - mkdir -p /home/ubuntu/.kube
+  - cp /etc/rancher/k3s/k3s.yaml /home/ubuntu/.kube/config
+  - chown -R ubuntu:ubuntu /home/ubuntu/.kube
+  - echo 'export KUBECONFIG=$HOME/.kube/config' >> /home/ubuntu/.bashrc
+
+  - curl -fsSL -o /usr/local/bin/get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4
+  - chmod 700 /usr/local/bin/get_helm.sh
+  - /usr/local/bin/get_helm.sh
+
+  - git clone https://github.com/Rysekk/low-latency-observability.git /home/ubuntu/low-latency-observability
+  - cd /home/ubuntu/low-latency-observability && KUBECONFIG=/etc/rancher/k3s/k3s.yaml make up
+
+# Send notification when done
+final_message: "K3s server initialization complete after $uptime seconds"
