@@ -154,6 +154,7 @@ The ingress controller is an ArgoCD Application using a multi-source Helm setup 
 | **Aug 30** | CI to GitOps closed: image tagged with the commit SHA, manifest bumped by the pipeline, deployed by ArgoCD |
 | **Sep 05** | ArgoCD app-of-apps, automated sync (`prune` and `selfHeal`) across the whole stack. Traefik moved under ArgoCD, `namespace.yaml` removed in favour of `CreateNamespace=true`. CI path filter so only application changes trigger a build. Makefile reduced to a bootstrap role with `kubectl wait`, validated from scratch on a fresh cluster |
 | **Sep 13** | Start of the Terraform IaC of the Oracle infrastructure (VCN, subnet, IGW, VM for the k3s node), SSH reachable |
+| **Sep 19** | k3s single-node (SQLite datastore) live on the Oracle A1 VM, reconciled by ArgoCD from the same app-of-apps |
 
 ---
 
@@ -282,7 +283,7 @@ Deliberately out of scope at this stage, listed so there is no ambiguity about w
 - ArgoCD reachable only through a port-forward, no Ingress, default admin credentials
 - Ingress depends on the ArgoCD sync completing, so nothing is reachable until the root Application has synced
 - Single replica: scaling a WebSocket horizontally would duplicate the feed and require sharding, which is not warranted at a few hundred msg/s
-- Local cluster (k3d), no EKS deployment yet
+- Production is a single-node k3s on an Oracle A1 ARM VM, not a managed multi-node service (EKS/GKE). No control-plane HA and no worker redundancy: losing the node loses the SLO window and the persistent volumes with it
 - Prometheus rules and the Grafana dashboard each exist in two places, `observability/` for compose and the ConfigMaps for Kubernetes, and nothing enforces that they stay identical
 
 Planned work: [`docs/backlog.md`](docs/backlog.md)

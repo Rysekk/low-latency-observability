@@ -245,6 +245,19 @@
 
 **Accepted downside**: Traefik is not available until the ArgoCD root Application has been synchronized and the Traefik Application has been deployed. This introduces an ordering dependency during the initial bootstrap: ArgoCD must be available and synchronized before Traefik can provide ingress.
 
+## 30. Single-node K3s in production
+
+**Context**: K3s can be installed on a single VM or on multiple VMs to provide high availability. We need to choose between these two architectures.
+
+**Decision**: We decided to go with a single-node installation.
+
+**Rationale**: We chose this architecture because the project is primarily focused on application latency and observability. Our SLOs and SLI are focused on latency rather than availability see [ADR 11](#11-strategy-recreate).
+
+**Discarded alternatives**: We considered splitting the available resources (4 CPU / 24 GB RAM) across two separate VMs. However, since both VMs would run on the same hypervisor, this would not provide meaningful additional availability. If the hypervisor goes down, both VMs would be unavailable.
+
+A multi-provider setup could provide better fault isolation, but it would require additional networking configuration, such as WireGuard, and would introduce additional network latency. This would be counterproductive for a project focused on measuring application latency. Adding remote worker nodes later is deferred, and tracked in the backlog; it depends on WireGuard and must not place latency-critical pods off the Oracle node.
+
+**Accepted downside**: The single-node architecture does not provide high availability for our application and Kubernetes workloads. A failure of the VM or the underlying hypervisor would make the entire cluster unavailable.
 
 ---
 

@@ -31,7 +31,7 @@
 
 ## Platform
 
-- [~] **Infrastructure & Provisioning**: Oracle VM via Terraform: network + A1 node provisioned, SSH reachable. Remaining: k3s via cloud-init, refactor into reusable modules
+- [~] **Infrastructure & Provisioning**: Oracle VM via Terraform: network + A1 node provisioned, SSH reachable, k3s via cloud-init. Remaining: Have fix ip and Wireguard
 - [ ] **Deployment**: Kustomize strategy with dev/prod overlays
 - [ ] **CI/CD**: Multi-arch image builds (amd64 / arm64) — the current amd64 scratch image will fail on arm64 nodes
 - [ ] **Security**: TLS + private exposure for Grafana and Prometheus
