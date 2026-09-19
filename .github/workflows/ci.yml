@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches: [main]     # On witch branch
-    paths: [cmd/**, build/**, go.*]
+    paths: [cmd/**, build/**, go.*, .github/workflows/ci.yml]
 
 jobs:
   lintAndTest:
@@ -50,6 +50,7 @@ jobs:
           context: .
           file: ./build/Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ghcr.io/rysekk/low-latency-observability:${{ github.sha }}
       
       - name: Commit and Push changes
