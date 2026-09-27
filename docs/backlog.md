@@ -31,9 +31,13 @@
 
 ## Platform
 
-- [~] **Infrastructure & Provisioning**: Oracle VM via Terraform: network + A1 node provisioned, SSH reachable, k3s via cloud-init. Remaining: Have fix ip and Wireguard
+- [ ] **Reserved public IP for Oracle A1**: ephemeral IP breaks DNS/SSH/WG on stop/start
+- [ ] **WireGuard** for private admin access (SSH/6443/Grafana/Prometheus through the tunnel, single UDP port exposed)
+- [ ] **Pin cloud-init to a Git ref**: currently clones `main` at HEAD, non-reproducible
+- [ ] **Hybrid multi-provider cluster over WG**: remote node via tunnel, latency-critical pods pinned to Oracle (see ADR 30)
+- [ ] **NATS/JetStream between ingest and processing**: gated on measured `processing` saturation. Does not lift single-WebSocket constraint
+- [ ] **Terraform state** remote encrypted Terraform state
 - [ ] **Deployment**: Kustomize strategy with dev/prod overlays
-- [ ] **CI/CD**: Multi-arch image builds (amd64 / arm64) — the current amd64 scratch image will fail on arm64 nodes
 - [ ] **Security**: TLS + private exposure for Grafana and Prometheus
 - [ ] **Chaos and resilience**: Fault injection and post-mortems. The node affinity crashloop from [ADR 22](decisions.md#22-dynamic-pvc-instead-of-a-static-hostpath-pv) is a first case worth writing up
 
@@ -54,7 +58,6 @@ Out of scope for now, listed to remove any ambiguity.
 | Prometheus without access control | Routed by the Ingress, but not protected |
 | Plain HTTP, no TLS | Local exposure only |
 | Grafana in anonymous-admin mode | No authentication |
-| Local k3d cluster | No cloud deployment |
 
 ## Open questions
 
