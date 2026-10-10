@@ -6,6 +6,7 @@ package_upgrade: true
 
 packages:
   - make
+  - wireguard-tools
 
 write_files:
   # K3s server configuration
@@ -40,19 +41,65 @@ write_files:
       echo "K3s server is ready!"
       kubectl get nodes
 
+  - path: /usr/local/bin/wg-key.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+
+      umask 077
+      mkdir -p /etc/wireguard
+
+      if /usr/local/bin/oci os object head --auth instance_principal --namespace-name "${os_namespace}" --bucket-name "${wg_bucket}" --name wg/privatekey >/dev/null 2>&1; then
+        /usr/local/bin/oci os object get --auth instance_principal --namespace-name "${os_namespace}" --bucket-name "${wg_bucket}" --name wg/privatekey --file /etc/wireguard/privatekey
+        wg pubkey < /etc/wireguard/privatekey > /etc/wireguard/publickey
+
+      else
+          wg genkey > /etc/wireguard/privatekey
+          wg pubkey < /etc/wireguard/privatekey > /etc/wireguard/publickey
+          /usr/local/bin/oci os object put --auth instance_principal --namespace-name "${os_namespace}" --bucket-name "${wg_bucket}" --name wg/privatekey --file /etc/wireguard/privatekey
+          /usr/local/bin/oci os object put --auth instance_principal --namespace-name "${os_namespace}" --bucket-name "${wg_bucket}" --name wg/publickey --file /etc/wireguard/publickey
+      fi
+      cat > /etc/wireguard/wg0.conf <<WGEOF
+      [Interface]
+      PrivateKey = $(cat /etc/wireguard/privatekey)
+      Address = 10.8.0.1/24
+      ListenPort = 51820
+
+      [Peer]
+      PublicKey = ${wireguard_public_key}
+      AllowedIPs = 10.8.0.2/32
+      WGEOF
+
+      chmod 600 /etc/wireguard/wg0.conf
+      iptables -C INPUT -p udp --dport 51820 -j ACCEPT 2>/dev/null ||
+      iptables -I INPUT 1 -p udp --dport 51820 -j ACCEPT
+      systemctl enable wg-quick@wg0
+      wg-quick up wg0
+
+
 # Commandes à exécuter (stage Final)
 runcmd:
+  #Installation OCI CLI
+  - curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-all-defaults --exec-dir /usr/local/bin
+
+  #Check if the WG key exist
+  - /usr/local/bin/wg-key.sh
+  
+  # Install k3s
   - /usr/local/bin/install-k3s.sh
 
+  #Create and configure kubeconfig
   - mkdir -p /home/ubuntu/.kube
   - cp /etc/rancher/k3s/k3s.yaml /home/ubuntu/.kube/config
   - chown -R ubuntu:ubuntu /home/ubuntu/.kube
   - echo 'export KUBECONFIG=$HOME/.kube/config' >> /home/ubuntu/.bashrc
 
+  # Install helm
   - curl -fsSL -o /usr/local/bin/get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4
   - chmod 700 /usr/local/bin/get_helm.sh
   - /usr/local/bin/get_helm.sh
 
+  # Clone repo and launch the cluster
   - git clone https://github.com/Rysekk/low-latency-observability.git /home/ubuntu/low-latency-observability
   - cd /home/ubuntu/low-latency-observability && KUBECONFIG=/etc/rancher/k3s/k3s.yaml make up
 

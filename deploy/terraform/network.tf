@@ -30,6 +30,17 @@ resource "oci_core_security_list" "security_list" {
   display_name   = "security_list"
     
   ingress_security_rules {
+    protocol  = "17" // UDP
+    source    = var.my_ip
+    stateless = false
+
+    udp_options {
+      min=51820
+      max=51820
+    }
+  }
+
+  ingress_security_rules {
     protocol  = "6" // tcp
     source    = var.my_ip
     stateless = false
@@ -39,6 +50,7 @@ resource "oci_core_security_list" "security_list" {
       max=22
     }
   }
+
   egress_security_rules {
 		destination = "0.0.0.0/0"
 		protocol = "all"

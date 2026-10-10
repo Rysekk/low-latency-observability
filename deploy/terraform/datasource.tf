@@ -21,3 +21,7 @@ data "oci_core_images" "ubuntu_image" {
     regex  = true
   }
 }
+
+data "oci_objectstorage_namespace" "storage-ns" {
+	compartment_id = oci_identity_compartment.tf-compartment.id
+}

@@ -4,8 +4,8 @@ resource "oci_core_instance" "ubuntu_instance" {
     compartment_id = oci_identity_compartment.tf-compartment.id
     shape = "VM.Standard.A1.Flex"
     shape_config {
-        ocpus = "4"
-        memory_in_gbs = "24"
+        ocpus = "2"
+        memory_in_gbs = "12"
     }
     source_details {
         source_id = data.oci_core_images.ubuntu_image.images[0].id
@@ -20,9 +20,14 @@ resource "oci_core_instance" "ubuntu_instance" {
     }
     metadata = {
         ssh_authorized_keys = file("${var.ssh_public_key_path}")
-        user_data = "${base64encode(file("${path.module}/cloud-init.yaml"))}"
+          user_data = base64encode(templatefile("${path.module}/cloud-init.yaml", {
+            wireguard_public_key = var.wg_laptop_public_key
+            os_namespace         = data.oci_objectstorage_namespace.storage-ns.namespace
+            wg_bucket            = oci_objectstorage_bucket.bucket-wg.name
+  }))
     } 
     preserve_boot_volume = false
+    depends_on = [oci_identity_policy.dynamic-policy-wg]
 }
 
 output "instance_ip_public" {

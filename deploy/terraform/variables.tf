@@ -28,6 +28,11 @@ variable "ssh_public_key_path" {
     type    = string
 }
 
+variable "wg_laptop_public_key" {
+    description = "Laptop public key for wireguard"
+    type    = string
+}
+
 variable "my_ip" {
     description = "My public ipv4"
     type    = string

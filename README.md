@@ -155,6 +155,7 @@ The ingress controller is an ArgoCD Application using a multi-source Helm setup 
 | **Sep 05** | ArgoCD app-of-apps, automated sync (`prune` and `selfHeal`) across the whole stack. Traefik moved under ArgoCD, `namespace.yaml` removed in favour of `CreateNamespace=true`. CI path filter so only application changes trigger a build. Makefile reduced to a bootstrap role with `kubectl wait`, validated from scratch on a fresh cluster |
 | **Sep 13** | Start of the Terraform IaC of the Oracle infrastructure (VCN, subnet, IGW, VM for the k3s node), SSH reachable |
 | **Sep 19** | k3s single-node (SQLite datastore) live on the Oracle A1 VM, reconciled by ArgoCD from the same app-of-apps |
+| **Oct 10** | WireGuard tunnel between the laptop and the VM, provisioned by cloud-init. The server key persists across VM rebuilds in an OCI Object Storage bucket, reached through instance principal auth (dynamic group and policy scoped to `wg/*`). VM resized to 2 OCPU / 12 GB |
 
 ---
 
@@ -255,6 +256,7 @@ deploy/
     monitoring/          prometheus, grafana, ingress
   helm/                  Traefik values consumed by ArgoCD via $values
   compose/               docker-compose stack, kept for local iteration
+  terraform/             Oracle Cloud infra (VCN, VM, WireGuard key bucket) and cloud-init
 observability/           Prometheus config and rules, Grafana provisioning
 docs/                    decisions.md, backlog.md
 ```
@@ -267,7 +269,7 @@ docs/                    decisions.md, backlog.md
 
 **Observability**: Prometheus 3.13 (recording and alerting rules, 30d retention), Grafana 13 (provisioned through ConfigMaps)
 
-**Infrastructure**: Kubernetes (k3d), ArgoCD (Helm chart `argo-cd` 10.4.2), Traefik (Helm chart 41.2.0), `local-path` PVCs
+**Infrastructure**: Terraform on Oracle Cloud (A1 ARM VM, k3s, WireGuard, Object Storage), Kubernetes (k3d locally), ArgoCD (Helm chart `argo-cd` 10.4.2), Traefik (Helm chart 41.2.0), `local-path` PVCs
 
 **Distribution**: multi-stage `scratch` image (~8.5 MB), published to `ghcr.io/rysekk/low-latency-observability`
 
