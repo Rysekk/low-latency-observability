@@ -1,9 +1,11 @@
 service:
-  type: LoadBalancer
+  type: NodePort
 ports:
-  web: 
+  web:
+    nodePort: 30080
     port: 80
-  websecure: 
+  websecure:
+    nodePort: 30443
     port: 443
 ingressClass:
   enabled: true

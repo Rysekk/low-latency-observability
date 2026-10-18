@@ -28,6 +28,11 @@ resource "oci_core_instance" "ubuntu_instance" {
     } 
     preserve_boot_volume = false
     depends_on = [oci_identity_policy.dynamic-policy-wg]
+
+    # Don't replace the instance when a newer Ubuntu image is published
+    lifecycle {
+        ignore_changes = [source_details[0].source_id]
+    }
 }
 
 output "instance_ip_public" {
