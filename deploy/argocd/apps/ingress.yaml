@@ -1,14 +1,14 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: ingress-monitoring
+  name: ingress
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: https://github.com/Rysekk/low-latency-observability
     targetRevision: main
-    path: deploy/k8s/monitoring/ingress/
+    path: deploy/k8s/ingress/
   destination:
     server: https://kubernetes.default.svc
     namespace: trading-app
