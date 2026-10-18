@@ -48,7 +48,7 @@ Binance WebSocket Stream (aggTrade / BTCUSDT)
              prometheus.local / grafana.local
 ```
 
-**Cluster**: k3d locally, single-node k3s on an Oracle A1 ARM VM in prod ([ADR 30](docs/decisions.md#30-single-node-k3s-in-production)). Application namespace `trading-app`. One Deployment and one Service per component, persistent volumes through the `local-path` StorageClass.
+**Cluster**: single-node k3s on an Oracle A1 ARM VM in prod ([ADR 30](docs/decisions.md#30-single-node-k3s-in-production)). Application namespace `trading-app`. One Deployment and one Service per component, persistent volumes through the `local-path` StorageClass.
 
 ### Delivery
 
@@ -77,7 +77,8 @@ Binance WebSocket Stream (aggTrade / BTCUSDT)
   │       ──> trading-app        │
   │       ──> prometheus         │
   │       ──> grafana            │
-  │       ──> ingress-monitoring │
+  │       ──> ingress            │
+  │       ──> argocd (itself)    │
   │                              │
   │  prune: true, selfHeal: true │
   └────────┬─────────────────────┘
@@ -137,69 +138,7 @@ The 0.5 ms warning is an early signal and not part of the SLO. The `dash-slo` da
 | **Sep 13** | Terraform for the Oracle infrastructure (network and VM) |
 | **Sep 19** | Single-node k3s running on the Oracle VM, same app-of-apps |
 | **Oct 10** | WireGuard tunnel to the VM, server key stored in Object Storage |
-
----
-
-## Running locally
-
-### Prerequisites
-
-- Docker
-- [k3d](https://k3d.io/), kubectl, Helm
-- Local host entries so the ingress domains resolve:
-
-```
-127.0.0.1 grafana.local
-127.0.0.1 prometheus.local
-```
-
-### 1. Create the cluster
-
-```bash
-k3d cluster create local-dev \
-  --agents 2 \
-  --port "80:80@loadbalancer" \
-  --k3s-arg "--disable=traefik@server:*"
-```
-
-- `--port 80:80`: lets the host reach Traefik (HTTP only, no TLS yet)
-- `--disable=traefik`: Traefik is deployed by ArgoCD instead ([ADR 29](docs/decisions.md#29-treafik-under-argocd))
-- Volumes are tied to the node where the pod first ran ([ADR 22](docs/decisions.md#22-dynamic-pvc-instead-of-a-static-hostpath-pv)), so deleting the cluster resets the SLO window
-
-### 2. Bootstrap
-
-```bash
-make up
-```
-
-Installs ArgoCD (chart `10.4.2`) and applies `deploy/argocd/root.yaml`. ArgoCD then deploys the rest from `deploy/argocd/apps/`, with the image built by the CI.
-
-```bash
-kubectl get applications -n argocd -w
-kubectl get pods -n trading-app
-```
-
-Services are then available at http://grafana.local and http://prometheus.local
-
-### 3. ArgoCD UI (optional)
-
-The ArgoCD server is `ClusterIP` and has no Ingress, so reach it through a port-forward:
-
-```bash
-kubectl port-forward -n argocd svc/argocd-server 8081:443
-kubectl -n argocd get secret argocd-initial-admin-secret \
-  -o jsonpath="{.data.password}" | base64 -d
-```
-
-Then open https://localhost:8081 and log in as `admin`.
-
-### Teardown
-
-```bash
-k3d cluster delete local-dev
-```
-
-This discards the PVCs and resets the SLO window.
+| **Oct 18** | Traefik as NodePort, ArgoCD self-managed and exposed through an Ingress, k3d setup retired |
 
 ---
 
@@ -207,7 +146,7 @@ This discards the PVCs and resets the SLO window.
 
 `deploy/terraform/` creates the network, an A1 ARM VM (2 OCPU / 12 GB) and a bucket for the WireGuard server key. Only SSH and WireGuard are open, and only from `my_ip`. On first boot, cloud-init sets up WireGuard, installs k3s and Helm, clones the repo and runs `make up`.
 
-The server key lives in the bucket, so rebuilding the VM doesn't change it and the laptop config keeps working.
+### 1. Provision
 
 ```bash
 cd deploy/terraform
@@ -215,13 +154,59 @@ terraform init
 terraform apply   # needs terraform.tfvars, see variables.tf
 ```
 
-On the laptop, `wg0.conf` uses `10.8.0.2`, the server public key from `bucket-wireguard/wg/publickey`, and `<instance_ip_public>:51820` as endpoint. Grafana and Prometheus are then reached through the tunnel.
+`make up` installs ArgoCD (chart `10.4.2`) and applies `deploy/argocd/root.yaml`. ArgoCD then deploys the rest from `deploy/argocd/apps/`, including itself with `deploy/helm/argocd-values.yaml`.
+
+### 2. WireGuard tunnel
+
+The server key lives in the bucket, so rebuilding the VM doesn't change it and the laptop config keeps working.
+
+```ini
+# /etc/wireguard/wg0.conf on the laptop
+[Interface]
+PrivateKey = <laptop private key>
+Address    = 10.8.0.2/24
+
+[Peer]
+PublicKey  = <bucket-wireguard/wg/publickey>
+Endpoint   = <instance_ip_public>:51820
+AllowedIPs = 10.8.0.0/24
+```
+
+```bash
+sudo wg-quick up wg0
+ping 10.8.0.1
+```
+
+### 3. Access
+
+Traefik is a `NodePort` (`web` on **30080**, `websecure` on 30443, see `deploy/helm/traefik-values.yaml`) and routes by host. Point the hosts at the tunnel IP only, without also listing them on the `127.0.0.1` line:
+
+```
+# /etc/hosts
+10.8.0.1  argocd.local grafana.local prometheus.local
+```
+
+| Service | URL | Ingress |
+|---|---|---|
+| ArgoCD | http://argocd.local:30080 | `deploy/k8s/ingress/ingress-argocd.yaml` |
+| Grafana | http://grafana.local:30080 | `deploy/k8s/ingress/ingress-monitoring.yaml` |
+| Prometheus | http://prometheus.local:30080 | `deploy/k8s/ingress/ingress-monitoring.yaml` |
+
+ArgoCD runs with `server.insecure: true`, so TLS is not terminated (HTTP only through the tunnel). Get the `admin` password on the VM (`ssh ubuntu@10.8.0.1`), change it after the first login, then delete the secret:
+
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath="{.data.password}" | base64 -d
+kubectl get applications -n argocd   # all Synced / Healthy
+```
+
+If a URL doesn't load, `curl -H "Host: argocd.local" http://10.8.0.1:30080/` tells apart a cluster problem (no `200`) from a local DNS problem (`200`).
 
 ---
 
 ## Continuous integration
 
-`.github/workflows/ci.yml`, triggered on push to `main` restricted to `cmd/**`, `build/**` and `go.*`, so documentation and manifest changes do not rebuild an image.
+`.github/workflows/ci.yml`, triggered on push to `main` restricted to `cmd/**`, `build/**`, `go.*` and the workflow file itself, so documentation and manifest changes do not rebuild an image.
 
 1. `lintAndTest`: `go vet ./...` then `go test ./...` on Go 1.26.5
 2. `build-push`, gated on the previous job: builds `build/Dockerfile` with Buildx for amd64 and arm64 and pushes `ghcr.io/rysekk/low-latency-observability:<commit SHA>`
@@ -242,8 +227,9 @@ deploy/
     apps/                one Application per component
   k8s/
     app/                 ingest-app Deployment and Service
-    monitoring/          prometheus, grafana, ingress
-  helm/                  Traefik values consumed by ArgoCD via $values
+    monitoring/          prometheus, grafana
+    ingress/             Ingresses for ArgoCD, Grafana, Prometheus
+  helm/                  Traefik and ArgoCD values consumed by ArgoCD via $values
   compose/               docker-compose stack, kept for local iteration
   terraform/             Oracle Cloud infra (VCN, VM, WireGuard key bucket) and cloud-init
 observability/           Prometheus config and rules, Grafana provisioning
@@ -258,7 +244,7 @@ docs/                    decisions.md, backlog.md, JOURNAL.md
 
 **Observability**: Prometheus 3.13 (recording and alerting rules, 30d retention), Grafana 13 (provisioned through ConfigMaps)
 
-**Infrastructure**: Terraform on Oracle Cloud (A1 ARM VM, k3s, WireGuard, Object Storage), Kubernetes (k3d locally), ArgoCD (Helm chart `argo-cd` 10.4.2), Traefik (Helm chart 41.2.0), `local-path` PVCs
+**Infrastructure**: Terraform on Oracle Cloud (A1 ARM VM, k3s, WireGuard, Object Storage), Kubernetes (k3s), ArgoCD (Helm chart `argo-cd` 10.4.2), Traefik (Helm chart 41.2.0, NodePort), `local-path` PVCs
 
 **Distribution**: multi-stage `scratch` image (~8.5 MB), published to `ghcr.io/rysekk/low-latency-observability`
 
