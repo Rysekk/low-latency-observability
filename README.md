@@ -258,3 +258,9 @@ Planned work: [`docs/backlog.md`](docs/backlog.md)
 
 - [`docs/decisions.md`](docs/decisions.md): technical decision records
 - [`docs/backlog.md`](docs/backlog.md): planned work and accepted debt
+
+---
+
+## License
+
+[MIT](LICENSE)
