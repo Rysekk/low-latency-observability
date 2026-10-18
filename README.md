@@ -44,8 +44,11 @@ Binance WebSocket Stream (aggTrade / BTCUSDT)
              │                             │
              └──────────┬──────────────────┘
                         ▼
-                 Traefik (Ingress)
-             prometheus.local / grafana.local
+         Traefik (Ingress, NodePort :30080)
+   grafana.local / prometheus.local / argocd.local
+                        ▲
+                        │ WireGuard tunnel (10.8.0.1)
+                     laptop
 ```
 
 **Cluster**: single-node k3s on an Oracle A1 ARM VM in prod ([ADR 30](docs/decisions.md#30-single-node-k3s-in-production)). Application namespace `trading-app`. One Deployment and one Service per component, persistent volumes through the `local-path` StorageClass.
@@ -137,14 +140,15 @@ The 0.5 ms warning is an early signal and not part of the SLO. The `dash-slo` da
 | **Sep 05** | ArgoCD app-of-apps with auto sync, Traefik under ArgoCD, CI path filter |
 | **Sep 13** | Terraform for the Oracle infrastructure (network and VM) |
 | **Sep 19** | Single-node k3s running on the Oracle VM, same app-of-apps |
-| **Oct 10** | WireGuard tunnel to the VM, server key stored in Object Storage |
-| **Oct 18** | Traefik as NodePort, ArgoCD self-managed and exposed through an Ingress, k3d setup retired |
+| **Oct 10** | WireGuard tunnel to the VM, server key stored in Object Storage ([ADR 31](docs/decisions.md#31-private-access-through-wireguard-server-key-in-object-storage)) |
+| **Oct 18** | Traefik as NodePort, since nothing provisions a `LoadBalancer` on the VM ([ADR 32](docs/decisions.md#32-traefik-exposed-as-a-nodeport)) |
+| **Oct 18** | ArgoCD manages itself and is exposed through an Ingress ([ADR 33](docs/decisions.md#33-argocd-manages-itself)), k3d dev environment paused, pending a dedicated dev machine |
 
 ---
 
 ## Deploying to Oracle Cloud
 
-`deploy/terraform/` creates the network, an A1 ARM VM (2 OCPU / 12 GB) and a bucket for the WireGuard server key. Only SSH and WireGuard are open, and only from `my_ip`. On first boot, cloud-init sets up WireGuard, installs k3s and Helm, clones the repo and runs `make up`.
+`deploy/terraform/` creates the network, an A1 ARM VM (2 OCPU / 12 GB) and a bucket for the WireGuard server key. Only WireGuard (UDP 51820) is open, and only from `my_ip`. SSH goes through the tunnel. On first boot, cloud-init sets up WireGuard, installs k3s and Helm, clones the repo and runs `make up`.
 
 ### 1. Provision
 
@@ -154,7 +158,7 @@ terraform init
 terraform apply   # needs terraform.tfvars, see variables.tf
 ```
 
-`make up` installs ArgoCD (chart `10.4.2`) and applies `deploy/argocd/root.yaml`. ArgoCD then deploys the rest from `deploy/argocd/apps/`, including itself with `deploy/helm/argocd-values.yaml`.
+`terraform apply` is the only manual step: cloud-init runs `make up` on first boot, nothing has to be launched by hand on the VM. `make up` installs ArgoCD (chart `10.4.2`) and applies `deploy/argocd/root.yaml`. ArgoCD then deploys the rest from `deploy/argocd/apps/`, including itself with `deploy/helm/argocd-values.yaml`.
 
 ### 2. WireGuard tunnel
 
@@ -169,7 +173,7 @@ Address    = 10.8.0.2/24
 [Peer]
 PublicKey  = <bucket-wireguard/wg/publickey>
 Endpoint   = <instance_ip_public>:51820
-AllowedIPs = 10.8.0.0/24
+AllowedIPs = 10.8.0.1/32
 ```
 
 ```bash
@@ -251,6 +255,21 @@ docs/                    decisions.md, backlog.md, JOURNAL.md
 **Hardening**: `runAsNonRoot` (65534), `readOnlyRootFilesystem`, all capabilities dropped, `GOMEMLIMIT` set below the memory limit so the GC reacts before the OOM killer does
 
 Planned work: [`docs/backlog.md`](docs/backlog.md)
+
+---
+
+## Known limitations
+
+- **Single node**: a VM or hypervisor failure takes the whole cluster down ([ADR 30](docs/decisions.md#30-single-node-k3s-in-production))
+- **No TLS, no auth**: Grafana is anonymous admin, Prometheus has no access control, ArgoCD runs `server.insecure`. Acceptable only because everything is reachable through the tunnel alone
+- **Single access path**: if `my_ip` or the ephemeral public IP changes, the tunnel is down until `terraform apply` is re-run
+- **Non-standard port**: URLs need `:30080` until an Oracle load balancer replaces the NodePort. Ingresses have no `ADDRESS` and stay `Progressing` in ArgoCD ([ADR 32](docs/decisions.md#32-traefik-exposed-as-a-nodeport))
+- **WireGuard key in a plain bucket**: protected by IAM only, no Vault encryption or rotation ([ADR 31](docs/decisions.md#31-private-access-through-wireguard-server-key-in-object-storage))
+- **Firewall rule not persisted**: the UDP 51820 `iptables` rule is added by cloud-init once per instance, so a reboot of the same VM cuts the tunnel
+- **A1 capacity**: Always Free A1 often returns "Out of host capacity", so a rebuild can take several `terraform apply` attempts
+- **Downtime does not burn the error budget**: no no-data alert yet, see [SLO](#slo-and-error-budget)
+
+Planned fixes are in [`docs/backlog.md`](docs/backlog.md).
 
 ---
 

@@ -31,14 +31,20 @@
 
 ## Platform
 
-- [ ] **Reserved public IP for Oracle A1**: ephemeral IP breaks DNS/SSH/WG on stop/start
-- [ ] **WireGuard** for private admin access (SSH/6443/Grafana/Prometheus through the tunnel, single UDP port exposed)
+- [ ] **Reserved public IP for Oracle A1**: the ephemeral IP changes on stop/start and breaks the tunnel endpoint; a reserved IP fixes it
+- [ ] **Oracle load balancer**: replace the Traefik NodePort ([ADR 32](decisions.md#32-traefik-exposed-as-a-nodeport)). Triggered by the first service that has to be public, not before
+- [ ] **Ingresses stay `Progressing` in ArgoCD**: with a NodePort, Traefik publishes no `ADDRESS`, so Ingress health never settles. Resolved by the load balancer, or earlier by a health override (`resource.customizations` in `argocd-cm`) or Traefik's `ingressEndpoint`
+- [ ] **OCI Cloud Controller Manager**: prerequisite for the load balancer, lets `type: LoadBalancer` Services provision an Oracle LB instead of staying `pending`
+- [ ] **OCI Vault for the WireGuard key**: move the server private key out of the Standard bucket for encryption, rotation and audit ([ADR 31](decisions.md#31-private-access-through-wireguard-server-key-in-object-storage))
+- [ ] **Persistent iptables**: the UDP 51820 rule is inserted by `wg-key.sh`, which cloud-init runs once per instance, so a reboot of the same VM loses it. Save it with `netfilter-persistent` (or a systemd unit)
+- [ ] **A1 capacity resilience**: `terraform apply` fails with "Out of host capacity" on Always Free A1 and is currently retried in a loop. Options: try several availability domains, fall back to a smaller shape, or keep the instance alive (no destroy on change)
 - [ ] **Pin cloud-init to a Git ref**: currently clones `main` at HEAD, non-reproducible
 - [ ] **Hybrid multi-provider cluster over WG**: remote node via tunnel, latency-critical pods pinned to Oracle (see ADR 30)
 - [ ] **NATS/JetStream between ingest and processing**: gated on measured `processing` saturation. Does not lift single-WebSocket constraint
 - [ ] **Terraform state** remote encrypted Terraform state
-- [ ] **Deployment**: Kustomize strategy with dev/prod overlays
-- [ ] **Security**: TLS + private exposure for Grafana and Prometheus
+- [ ] **Dev environment**: prod-only for now. Rebuild a local dev cluster on home-lab hardware when available; `deploy/compose/` remains for app-level iteration
+- [ ] **Deployment**: Kustomize dev/prod overlays, once a dev environment exists again
+- [ ] **Security**: TLS for Grafana, Prometheus and ArgoCD. Low priority: private exposure is done and transport is already encrypted by the WireGuard tunnel
 - [ ] **Chaos and resilience**: Fault injection and post-mortems. The node affinity crashloop from [ADR 22](decisions.md#22-dynamic-pvc-instead-of-a-static-hostpath-pv) is a first case worth writing up
 
 ## Direction
@@ -56,7 +62,7 @@ Out of scope for now, listed to remove any ambiguity.
 |---|---|
 | Use GITHUB_TOKEN for no infinite loop | Do not replace the GITHUB_TOKEN in the pipeline with a PAT Token otherwise everything break |
 | Prometheus without access control | Routed by the Ingress, but not protected |
-| Plain HTTP, no TLS | Local exposure only |
+| Plain HTTP, no TLS | Reachable through the WireGuard tunnel only. ArgoCD runs with `server.insecure: true` |
 | Grafana in anonymous-admin mode | No authentication |
 
 ## Open questions

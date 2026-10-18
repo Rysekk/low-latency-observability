@@ -40,17 +40,6 @@ resource "oci_core_security_list" "security_list" {
     }
   }
 
-  ingress_security_rules {
-    protocol  = "6" // tcp
-    source    = var.my_ip
-    stateless = false
-
-    tcp_options {
-      min=22
-      max=22
-    }
-  }
-
   egress_security_rules {
 		destination = "0.0.0.0/0"
 		protocol = "all"

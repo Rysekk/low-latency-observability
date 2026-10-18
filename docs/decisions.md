@@ -20,6 +20,15 @@
 | [22](#22-dynamic-pvc-instead-of-a-static-hostpath-pv) | Aug 11 | Dynamic PVC instead of static PV |
 | [23](#23-grafana-pvc-and-hybrid-dashboard-model) | Aug 11 | Grafana PVC and hybrid model |
 | [24](#24-ingress-through-a-manually-installed-traefik) | Aug 15 | Ingress through a manually installed Traefik |
+| [25](#25-convert-string-to-decimaldecimal-instead-of-float64) | Aug 29 | `decimal.Decimal` instead of `float64` |
+| [26](#26-argocd-over-flux) | Sep 05 | ArgoCD over Flux |
+| [27](#27-sha-tag-ci-over-argo-image-updater) | Sep 05 | SHA tag: CI over Argo Image Updater |
+| [28](#28-app-of-apps-vs-manual-application) | Sep 05 | App-of-apps |
+| [29](#29-treafik-under-argocd) | Sep 05 | Traefik under ArgoCD |
+| [30](#30-single-node-k3s-in-production) | Sep 19 | Single-node k3s in production |
+| [31](#31-private-access-through-wireguard-server-key-in-object-storage) | Oct 10 | Private access through WireGuard |
+| [32](#32-traefik-exposed-as-a-nodeport) | Oct 18 | Traefik as NodePort |
+| [33](#33-argocd-manages-itself) | Oct 18 | ArgoCD manages itself |
 | [-](#conventions) | - | Conventions |
 
 ---
@@ -172,6 +181,8 @@
 
 ## 24. Ingress through a manually installed Traefik
 
+> Superseded by [ADR 29](#29-treafik-under-argocd) (installation) and [ADR 32](#32-traefik-exposed-as-a-nodeport) (exposure).
+
 **Context**: services were reachable through `kubectl port-forward` only, which is a per-developer, per-session workaround rather than an exposure model.
 
 **Decision**: expose Prometheus and Grafana through Ingress resources, served by a Traefik installed from the upstream Helm chart with a versioned values file, and disable the Traefik bundled with k3s.
@@ -258,6 +269,55 @@
 A multi-provider setup could provide better fault isolation, but it would require additional networking configuration, such as WireGuard, and would introduce additional network latency. This would be counterproductive for a project focused on measuring application latency. Adding remote worker nodes later is deferred, and tracked in the backlog; it depends on WireGuard and must not place latency-critical pods off the Oracle node.
 
 **Accepted downside**: The single-node architecture does not provide high availability for our application and Kubernetes workloads. A failure of the VM or the underlying hypervisor would make the entire cluster unavailable.
+
+## 31. Private access through WireGuard, server key in Object Storage
+
+**Context**: The prod cluster runs on a public Oracle VM. Grafana, Prometheus, the ArgoCD UI and the Kubernetes API have no authentication worth exposing ([Accepted debt](backlog.md#accepted-debt)), and the VM is rebuilt with `terraform apply` whenever cloud-init changes. Admin access must stay private and survive a rebuild without touching the laptop config.
+
+**Decision**: A WireGuard tunnel (`10.8.0.1` server, `10.8.0.2` laptop) is the only path to the services. The OCI security list opens UDP 51820 to `my_ip` only, and SSH goes through the tunnel like everything else. Server side, the laptop peer is pinned to `AllowedIPs = 10.8.0.2/32`, so the tunnel accepts a single source address. On first boot, `wg-key.sh` fetches the server private key from the `bucket-wireguard` bucket, or generates and uploads it if absent. The VM authenticates with **instance principals**: a dynamic group matching the instances of the compartment, and a policy limited to `OBJECT_CREATE`/`READ`/`INSPECT` on `wg/*` in that bucket.
+
+**Rationale**: The key outliving the VM is what makes rebuilds cheap: the server public key is stable, so the laptop peer never changes. Instance principals avoid shipping an API key or a secret in cloud-init, and the policy scope means a compromised VM can only read and write the WireGuard objects. One UDP port is a smaller surface than one port per service, and WireGuard does not answer unauthenticated packets.
+
+**Discarded alternatives**:
+- *Exposing the services publicly behind basic auth or TLS*: one exposed port and one credential per service, and the auth debt has to be paid before anything is reachable.
+- *SSH port-forwards*: work, but one forward per service and per session, nothing persistent.
+- *Generating a new key on every boot*: no storage needed, but every rebuild breaks the laptop config.
+- *OCI Vault for the key*: the right home for a secret (encryption, rotation, audit), but more IAM and API surface than a single key justifies today. Tracked in the backlog.
+- *Tailscale or another mesh*: less to configure, but a third-party control plane, and the point is to learn the mechanism.
+
+**Accepted downside**: The key sits in a Standard bucket protected only by IAM, without Vault-level encryption or rotation. The tunnel is a single point of access: if `my_ip` changes or the public IP changes on stop/start, access is lost until Terraform is re-applied. The `iptables` rule opening UDP 51820 is inserted by `wg-key.sh`, which cloud-init runs once per instance (`runcmd`), not on every boot. A fresh instance always gets it, but a reboot of the same instance loses it and cuts the tunnel.
+
+## 32. Traefik exposed as a NodePort
+
+> Supersedes the `LoadBalancer` exposure model of [ADR 24](#24-ingress-through-a-manually-installed-traefik).
+
+**Context**: In k3d, the Traefik `LoadBalancer` Service was served by k3d's load balancer. On the Oracle VM, k3s runs with `servicelb` disabled and there is no Oracle Cloud Controller Manager, so nothing provisions an external IP: the Service stayed `<pending>` forever and nothing listened on port 80.
+
+**Decision**: Traefik runs as a `NodePort` Service, `web` on **30080** and `websecure` on **30443** (`deploy/helm/traefik-values.yaml`). Services are reached through the tunnel at `http://<host>.local:30080`.
+
+**Rationale**: NodePort needs nothing outside the cluster. All access already goes through WireGuard ([ADR 31](#31-private-access-through-wireguard-server-key-in-object-storage)), so a public load balancer has nothing to serve yet, and fixed node ports keep the URLs stable across redeploys.
+
+**Discarded alternatives**:
+- *Keeping `LoadBalancer` without a CCM*: stays `pending`, never reachable.
+- *Re-enabling k3s `servicelb` (Klipper)*: binds host ports 80/443 and works on a single node, but it is a k3s-only mechanism that does not transfer to other clusters, and it would have to be undone the day a real load balancer arrives.
+- *An Oracle load balancer with the OCI CCM*: the production model, but it costs a public IP and a listener for a service with no public user yet. Deferred until a service has to be public.
+- *`hostNetwork` / `hostPort` on 80*: removes the `:30080` from URLs, but ties the Traefik pod to the node's network namespace.
+
+**Accepted downside**: URLs carry a non-standard port, which is easy to forget (a wrong port looks like an unreachable cluster). Moving to a load balancer later means changing the Service type and the access documentation. Without an external IP on the Traefik Service, Ingresses never get an `ADDRESS`, so ArgoCD reports every Ingress as `Progressing` permanently, which hides a real health change. Publishing a fixed address through Traefik's `ingressEndpoint` would mask it, and is not applied.
+
+## 33. ArgoCD manages itself
+
+**Context**: `make up` installs ArgoCD with Helm, then hands over to the app-of-apps. After that, any change to ArgoCD itself (values, chart version, Ingress) meant a manual `helm upgrade`, outside Git and outside the "Git is the only write path" rule.
+
+**Decision**: An `argocd` Application in `deploy/argocd/apps/` points at the same `argo-cd` chart (`10.4.2`) and release name, with `deploy/helm/argocd-values.yaml` through `$values`. ArgoCD adopts the objects created by the bootstrap release and reconciles them with `prune` and `selfHeal`. The UI is exposed through an Ingress on `argocd.local`, with `server.insecure: true` because TLS is not terminated anywhere yet.
+
+**Rationale**: It closes the last component managed outside Git. Upgrading ArgoCD becomes a commit, like everything else, and the bootstrap stays a minimal one-off. It is the same multi-source pattern as Traefik ([ADR 29](#29-treafik-under-argocd)).
+
+**Discarded alternatives**:
+- *Helm upgrades from the Makefile*: simple and explicit, but imperative and invisible in the ArgoCD view.
+- *A separate management cluster running ArgoCD*: the clean answer at scale, unjustified for one cluster.
+
+**Accepted downside**: ArgoCD can break itself: a bad value or chart bump can take down the controller that would revert it, and recovery goes back through `make up` or a manual `helm`. The bootstrap command and the Application must stay on the same chart version, or the first sync triggers an upgrade. The UI runs over plain HTTP, acceptable only because it is reachable through the tunnel alone.
 
 ---
 
