@@ -36,10 +36,16 @@ type Trade struct {
 	TradeTime time.Time
 }
 
-func readStream(ctx context.Context, c chan []byte, conn *websocket.Conn, messageDropped prometheus.Counter, messageReceive prometheus.Counter) {
+type message struct {
+	payload []byte
+	readAt  time.Time
+}
+
+func readStream(ctx context.Context, c chan message, conn *websocket.Conn, messageDropped prometheus.Counter, messageReceive prometheus.Counter) {
 	defer close(c)
 	for {
 		_, result, err := conn.Read(ctx)
+		queueStart := time.Now()
 		if err != nil {
 			if ctx.Err() != nil {
 				log.Println("shutdown requested")
@@ -51,7 +57,7 @@ func readStream(ctx context.Context, c chan []byte, conn *websocket.Conn, messag
 		}
 		messageReceive.Inc()
 		select {
-		case c <- result:
+		case c <- message{payload: result, readAt: queueStart}:
 		default:
 			messageDropped.Inc()
 		}
@@ -98,7 +104,7 @@ func main() {
 		prometheus.HistogramOpts{
 			Name:    "ingest_duration_seconds",
 			Help:    "Duration of a stage in the pipeline.",
-			Buckets: prometheus.ExponentialBuckets(0.00001, 1.5, 15),
+			Buckets: []float64{0.00001, 0.000025, 0.00005, 0.0001, 0.00025, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1},
 		},
 		[]string{"stage"},
 	)
@@ -123,7 +129,7 @@ func main() {
 			Help: "The total number of error in the Trade convertion function pipeline.",
 		})
 
-	channel := make(chan []byte, 128)
+	channel := make(chan message, 128)
 	prometheus.MustRegister(metricDuration, messageDropped, messageReceive, parseJsonError, parseTradeError)
 
 	ctx, stop := signal.NotifyContext(
@@ -142,14 +148,15 @@ func main() {
 	go readStream(ctx, channel, conn, messageDropped, messageReceive)
 	go httpPrometheusExporter()
 	for msg := range channel {
-		pipelineStart := time.Now()
-		aggTrade, errJson := parseAggTrade(msg)
+		metricDuration.WithLabelValues("queue").Observe(time.Since(msg.readAt).Seconds())
+		parseStart := time.Now()
+		aggTrade, errJson := parseAggTrade(msg.payload)
 		if errJson != nil {
 			log.Printf("Json Parsing Error %v", errJson)
 			parseJsonError.Inc()
 			continue
 		}
-		metricDuration.WithLabelValues("parse").Observe(time.Since(pipelineStart).Seconds())
+		metricDuration.WithLabelValues("parse").Observe(time.Since(parseStart).Seconds())
 		processingStart := time.Now()
 		_, errTrade := convertTrade(aggTrade)
 		if errTrade != nil {
@@ -158,6 +165,6 @@ func main() {
 			continue
 		}
 		metricDuration.WithLabelValues("processing").Observe(time.Since(processingStart).Seconds())
-		metricDuration.WithLabelValues("pipeline").Observe(time.Since(pipelineStart).Seconds())
+		metricDuration.WithLabelValues("pipeline").Observe(time.Since(msg.readAt).Seconds())
 	}
 }

@@ -149,3 +149,23 @@ func TestConvertTrade(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkChannelBytes(b *testing.B) {
+	c := make(chan []byte, 1)
+	payload := []byte(`{"e":"aggTrade","E":123456789,"s":"BTCUSDT","p":"50000.00","q":"0.5","T":123456790}`)
+
+	for b.Loop() {
+		c <- payload
+		<-c
+	}
+}
+
+func BenchmarkChannelMessage(b *testing.B) {
+	c := make(chan message, 1)
+	payload := []byte(`{"e":"aggTrade","E":123456789,"s":"BTCUSDT","p":"50000.00","q":"0.5","T":123456790}`)
+
+	for b.Loop() {
+		c <- message{payload: payload, readAt: time.Now()}
+		<-c
+	}
+}
