@@ -15,8 +15,6 @@
 | [8](#8-slis-materialised-as-versioned-recording-rules) | Jul 26 | SLIs as versioned recording rules |
 | [11](#11-strategy-recreate) | Jul 29 | `strategy: Recreate` |
 | [12](#12-burstable-qos) | Jul 29 | Burstable QoS, no CPU limit |
-| [17](#17-graceful-shutdown-through-signalnotifycontext) | Aug 02 | Graceful shutdown via `signal.NotifyContext` |
-| [21](#21-dashboard-export-through-the-classic-api-only) | Aug 10 | Dashboard export through the API only |
 | [22](#22-dynamic-pvc-instead-of-a-static-hostpath-pv) | Aug 11 | Dynamic PVC instead of static PV |
 | [23](#23-grafana-pvc-and-hybrid-dashboard-model) | Aug 11 | Grafana PVC and hybrid model |
 | [24](#24-ingress-through-a-manually-installed-traefik) | Aug 15 | Ingress through a manually installed Traefik |
@@ -29,6 +27,8 @@
 | [31](#31-private-access-through-wireguard-server-key-in-object-storage) | Oct 10 | Private access through WireGuard |
 | [32](#32-traefik-exposed-as-a-nodeport) | Oct 18 | Traefik as NodePort |
 | [33](#33-argocd-manages-itself) | Oct 18 | ArgoCD manages itself |
+| [34](#34-observability-architecture-prometheus-owns-metrics-opentelemetry-owns-logs-and-traces) | Oct 24 | Prometheus owns metrics, OpenTelemetry owns logs |
+| [35](#35-observability-stack-co-located-with-the-ingestor) | Oct 24 | Observability stack co-located with the ingestor |
 | [-](#conventions) | - | Conventions |
 
 ---
@@ -123,29 +123,7 @@
 
 **To watch**: `container_cpu_cfs_throttled_seconds_total` must stay at zero. If it rises, a limit has been reintroduced somewhere.
 
----
 
-## 17. Graceful shutdown through `signal.NotifyContext`
-
-**Context**: on SIGTERM (deployment, eviction), the process must stop cleanly, closing the WebSocket and draining the channel rather than being killed cold.
-
-**Decision**: `signal.NotifyContext` at the root, context propagated down to `conn.Read`, `defer close(channel)` on the **producer** side.
-
-**Rationale**: `log.Fatal` is `os.Exit(1)`, so no `defer` runs, nothing closes cleanly, and the exit code reports an error even though the shutdown was requested. Closing the channel belongs to the producer, which alone knows it will not write again. Closing from the consumer side panics on the next write.
-
-**Measurable effect**: the cut becomes deterministic, which makes the deployment gap from [ADR 11](#11-strategy-recreate) short and predictable rather than incidental.
-
----
-
-## 21. Dashboard export through the classic API only
-
-**Problem**: dashboards exported from the Grafana 13 UI, including through the "classic" option, produce the V2 schema (`elements`, `layout`, `vizConfig`). Placed in a ConfigMap, they are **not loaded** by file provisioning, and no explicit error is raised.
-
-**Decision**: export exclusively through `GET /api/dashboards/uid/<UID>` followed by `jq '.dashboard'`.
-
-**Iteration workflow**: non-provisioned sandbox copy, free editing in the UI, API export, UID realignment, ConfigMap.
-
-**Diagnosis**: telling a provisionable JSON apart comes down to markers. V1 exposes `panels` and `schemaVersion`, V2 exposes `elements`/`layout` or an `apiVersion`/`kind`/`metadata` envelope.
 
 ---
 
@@ -175,7 +153,7 @@
 - **provisioned** dashboards: authority is Git, read-only, reproducible
 - **UI** dashboards: authority is SQLite, editable, not reproducible
 
-**Exit rule**: a dashboard considered final is exported through the API ([ADR 21](#21-dashboard-export-through-the-classic-api-only)) and moves to the Git side. The PVC is a workspace, not permanent storage.
+**Exit rule**: a dashboard considered final is exported through the classic API (see *Dashboard export* in [Conventions](#conventions)) and moves to the Git side. The PVC is a workspace, not permanent storage.
 
 **Named risk**: without discipline on the exit rule, SQLite becomes unversioned state that nobody knows how to rebuild.
 
@@ -210,7 +188,7 @@
 
 ## 26. ArgoCD over Flux.
 
-**Context**: Needed to choose a Gitops tools and it have been decided to choose ArgoCD over Flux.
+**Context**: The cluster needs a GitOps controller so that Git is the only write path. The two CNCF graduated options are ArgoCD and Flux.
 
 **Decision**: We decided to use ArgoCD instead of Flux, even though Flux is more lightweight.
 
@@ -319,6 +297,44 @@ A multi-provider setup could provide better fault isolation, but it would requir
 
 **Accepted downside**: ArgoCD can break itself: a bad value or chart bump can take down the controller that would revert it, and recovery goes back through `make up` or a manual `helm`. The bootstrap command and the Application must stay on the same chart version, or the first sync triggers an upgrade. The UI runs over plain HTTP, acceptable only because it is reachable through the tunnel alone.
 
+## 34. Observability architecture: Prometheus owns metrics, OpenTelemetry owns logs and traces
+
+**Context**: Prometheus only scraped the ingestor. Cluster signals were missing although the backlog depends on them (pods stuck in `Pending`, CFS throttling). Logs lived only in `kubectl logs`, which keeps one previous container and loses everything on a rebuild. Alerts fired into the Prometheus UI with nobody notified. The open question was whether OpenTelemetry should become the single collection layer.
+
+**Decision**:
+- *Metrics*: Prometheus pulls everything: the ingestor, kube-state-metrics and node-exporter (Helm charts as ArgoCD Applications), kubelet, cAdvisor and CoreDNS through `kubernetes_sd_configs`, annotated pods, and the observability stack itself. The ingestor keeps the Prometheus Go client, no OTel SDK.
+- *Logs*: an OpenTelemetry Collector (contrib) DaemonSet reads the `trading-app` pod logs (`filelog`) and Kubernetes events (`k8sobjects`), and exports them to Loki over OTLP. Loki runs as a single binary on a `local-path` PVC, 7 days retention. The ingestor logs JSON through `log/slog`, errors and lifecycle events only, never one line per message.
+- *Traces*: none for now. The same Collector receives OTLP traces when they exist.
+- *Alerting*: Prometheus rules only, routed by Alertmanager to a single receiver. Loki serves investigation, no ruler.
+
+**Rationale**: Pull gives `up` for every target, which the no-data alert relies on; with push, a silent target looks the same as absent data. The SLO path stays app → Prometheus, so a Collector failure costs logs, not the SLO. The Prometheus client costs a few atomic adds per observation in the measured path; the OTel metrics SDK does more work per record and would need its own benchmark to earn its place. The exporters already speak the Prometheus format, so a Collector in front of them is a hop for nothing. Logs need an agent anyway, and the Collector is the vendor-neutral one that will also carry traces: one agent for both. Anything worth alerting on in the logs becomes a counter in the app, as `ingest_json_parse_errors_total` already is.
+
+**Discarded alternatives**:
+- *Every signal through OpenTelemetry* (Collector scrapes, remote-writes to Prometheus): one pipeline and shared resource attributes, but an extra hop in the SLO path and pull semantics rebuilt with `absent()`. To revisit with a second metrics backend, a second cluster or a push-only source.
+- *kube-prometheus-stack*: the Operator and ServiceMonitors fit many apps owning their own scrape config. Here it would replace a documented hand-written Prometheus, cost memory on a 12 GB node and hide the scrape config being learned.
+- *Grafana Alloy*: simpler with Loki, but Grafana-specific. *Promtail*: end of life. *Fluent Bit*: light, no path to traces.
+- *Loki on Object Storage*: survives rebuilds, at the cost of a bucket, a credential and more config, for logs that are only lost on planned rebuilds.
+- *Tracing now*: one process, no network hop, per-stage latency already in the histogram. A span per trade adds work in the measured path. To revisit at the first hop between two processes.
+
+**Accepted downside**: Two collection mechanisms to run instead of one. Logs and metrics are correlated through aligned labels (`namespace`, `pod`, `container`), not shared resource attributes. A rebuild (`preserve_boot_volume = false`) wipes Loki the same way it wipes Prometheus. Prometheus needs cluster-wide read RBAC to discover nodes and pods.
+
+## 35. Observability stack co-located with the ingestor
+
+**Context**: The Oracle Always Free A1 allowance was cut in 2026 to 1,500 OCPU-hours and 9,000 GB-hours per month, i.e. 2 OCPU and 12 GB, which the single VM already uses ([ADR 30](#30-single-node-k3s-in-production)). [ADR 34](#34-observability-architecture-prometheus-owns-metrics-opentelemetry-owns-logs-and-traces) adds kube-state-metrics, node-exporter, the Collector, Loki and Alertmanager on the node that runs the ingestor, whose CPU request is 50m with no limit ([ADR 12](#12-burstable-qos)).
+
+**Decision**: The observability stack shares the node, with guardrails: every new component declares CPU and memory requests and a memory limit; the ingestor gets a higher `PriorityClass`, so monitoring pods are evicted first under pressure; ingestor p99 and `container_cpu_cfs_throttled_seconds_total` are measured before and after the rollout.
+
+**Rationale**: No second node exists within the free tier, and exceeding the allowance disables then deletes the A1 instances. Splitting the same 2 OCPU / 12 GB into two VMs gives isolation on paper but smaller nodes on the same hypervisor (ADR 30). Measuring the delta turns co-location from an assumption into a number tied to the SLO.
+
+**Discarded alternatives**:
+- *A dedicated monitoring node*: real isolation, outside the free tier, or remote over WireGuard (backlog), where monitoring would observe through a tunnel.
+- *Two 1 OCPU / 6 GB VMs*: same total, same hypervisor, weaker nodes.
+- *No Loki*: drops the heaviest component, and the logs decided in ADR 34 with it.
+
+**Accepted downside**: Monitoring competes with the ingestor for CPU and memory bandwidth, so a Loki or Prometheus compaction can show up in the very p99 it measures. Monitoring is evicted first, so under memory pressure the stack goes blind exactly when something is wrong.
+
+**To watch**: p99 delta before and after, `container_cpu_cfs_throttled_seconds_total` at zero, node memory headroom.
+
 ---
 
 ## Conventions
@@ -333,7 +349,9 @@ Choices applied without a real trade-off, recorded for reference.
 | Component split | One Deployment and one Service per component | Independent lifecycles. Multi-container pods are only justified under tight coupling (localhost or shared volume) |
 | Naming | No version prefix or suffix | A resource name is a stable DNS address, the version lives in the image tag |
 | Replication | `replicas: 1` | A single WebSocket cannot scale out without duplicating the feed, and sharding is unwarranted at a few hundred msg/s |
-| WebSocket library | `coder/websocket` | Minimal API built on `context.Context`, consistent with the context propagation of [ADR 17](#17-graceful-shutdown-through-signalnotifycontext) |
+| WebSocket library | `coder/websocket` | Minimal API built on `context.Context`, consistent with the context propagation of the *Graceful shutdown* convention |
 | Latency metrics | Histograms | The only type from which percentiles can be derived. Low-latency work watches the high percentiles (p99, p99.9), not the average |
 | Grafana runtime | `runAsUser: 472`, `readOnlyRootFilesystem: true` | UID imposed by the image. A read-only root filesystem requires covering every write path (`/var/lib/grafana`, `/tmp`) with volumes. Kubernetes applies nested mounts by path depth, so the dashboards ConfigMap is not masked by the parent emptyDir |
 | Grafana datasource | Fixed `uid: prometheus`, FQDN URL | A generated UID changes on every redeploy and breaks dashboard references. The FQDN `prometheus.trading-app:9090` stays reachable from another namespace |
+| Graceful shutdown | `signal.NotifyContext` on SIGINT/SIGTERM, the producer closes the channel | `log.Fatal` skips `defer`. Only the producer knows it will not write again, so closing from the consumer panics |
+| Dashboard export | Classic API only: `GET /api/dashboards/uid/<UID>` then `jq '.dashboard'`. Never "Export for sharing externally" | UI exports produce the V2 schema, and external exports leave `${DS_*}` inputs. File provisioning resolves neither, silently |
