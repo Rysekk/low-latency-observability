@@ -31,7 +31,7 @@ services:
     build:
       context: ../..
       dockerfile: build/Dockerfile
-    image: ghcr.io/rysekk/low-latency-observability@sha256:816333bb75c6519bd8ceebdfbaa88bc5801c355e38d17f3a7f0d7c76cc688436
+    image: ghcr.io/rysekk/low-latency-observability@sha256:8f922148418040dbb16cc0d9b34b18d8dd68830ebdd4a5eb1c0f8f01297fbffc
     container_name: low-latency-app
     restart: unless-stopped
     ports:
