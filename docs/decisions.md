@@ -29,6 +29,7 @@
 | [33](#33-argocd-manages-itself) | Oct 18 | ArgoCD manages itself |
 | [34](#34-observability-architecture-prometheus-owns-metrics-opentelemetry-owns-logs-and-traces) | Oct 24 | Prometheus owns metrics, OpenTelemetry owns logs |
 | [35](#35-observability-stack-co-located-with-the-ingestor) | Oct 24 | Observability stack co-located with the ingestor |
+| [36](#36-the-slo-measures-pipeline-latency-including-queue-wait) | Oct 24 | The SLO measures pipeline latency, including queue wait |
 | [-](#conventions) | - | Conventions |
 
 ---
@@ -356,6 +357,8 @@ A multi-provider setup could provide better fault isolation, but it would requir
 
 **Accepted downside**: The SLI history before the change is not comparable with the history after it. The channel element becomes a struct (slice header + `time.Time`, about 48 bytes) passed by value: a larger copy, 0 allocs/op, about +30 ns per message on the micro-benchmark, mostly time.Now(), against ~100 µs of queue wait.
 
+**Validation**: Deployed Oct 24. Production p99 pipeline ≈ 0.25 ms, mostly queue wait. Keeping the metric name while changing the bucket layout mixed both layouts in `rate[5m]` for 5 minutes per image change, which produced a false p99 of 100 ms (the last bucket). A rollback added two more windows. Cost: 12 bad minutes recorded, ~28% of the 30-day budget.
+
 ---
 
 ## Conventions
@@ -376,3 +379,4 @@ Choices applied without a real trade-off, recorded for reference.
 | Grafana datasource | Fixed `uid: prometheus`, FQDN URL | A generated UID changes on every redeploy and breaks dashboard references. The FQDN `prometheus.trading-app:9090` stays reachable from another namespace |
 | Graceful shutdown | `signal.NotifyContext` on SIGINT/SIGTERM, the producer closes the channel | `log.Fatal` skips `defer`. Only the producer knows it will not write again, so closing from the consumer panics |
 | Dashboard export | Classic API only: `GET /api/dashboards/uid/<UID>` then `jq '.dashboard'`. Never "Export for sharing externally" | UI exports produce the V2 schema, and external exports leave `${DS_*}` inputs. File provisioning resolves neither, silently |
+| Metric naming | New meaning or new buckets → new metric name | Old and new series never mix in one query, and the history break is visible |

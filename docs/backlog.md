@@ -6,14 +6,14 @@
 
 ## Inbox
 
-*(empty: sorted weekly)*
+- [ ] Native histograms (`NativeHistogramBucketFactor`): no `le` labels, so a layout change can't mix. Trigger: next histogram layout change
 
 ## Now: Observability v1
 
 **Done when**: the Kubernetes dashboard shows real data, logs and events are searchable in Loki, a test alert reaches the phone, the observability stack is scraped, and the p99 delta is recorded in ADR 35. See [ADR 34](decisions.md#34-observability-architecture-prometheus-owns-metrics-opentelemetry-owns-logs-and-traces) and [ADR 35](decisions.md#35-observability-stack-co-located-with-the-ingestor).
 
 ### 1. Correct SLI and baseline
-- [ ] **SLI defect**: Capture the time spent in the channel buffer. Currently, `pipelineStart` begins upon channel exit, leaving the queue wait time unmeasured → ADR 36
+- [x] **SLI defect**: Capture the time spent in the channel buffer. Currently, `pipelineStart` begins upon channel exit, leaving the queue wait time unmeasured → ADR 36
 - [ ] Structured JSON logging, in preparation for Loki
 - [ ] (new) Rename the parse counters to *malformed message* and *invalid trade*; rename the dashboard row to "Throughput, drops and errors"
 - [ ] (new) Split the ratio: `ingest:admission_ratio` (current formula) and `ingest:processed_ratio` (trades / messages); update SLO panel 13

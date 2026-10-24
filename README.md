@@ -112,7 +112,7 @@ The 0.5 ms warning is an early signal and not part of the SLO. The `dash-slo` da
 
 | Metric | Type | Purpose |
 |---|---|---|
-| `ingest_duration_seconds{stage}` | Histogram | Per-stage latency, `parse` / `processing` / `pipeline`. 15 exponential buckets from 10 µs, factor 1.5, up to ~2.9 ms |
+| `ingest_duration_seconds{stage}` | Histogram | Per-stage latency, `queue` / `parse` / `processing` / `pipeline`. 13 explicit buckets up to 100 ms |
 | `ingest_message_receive_total` | Counter | Messages read off the socket, SLI denominator |
 | `ingest_message_dropped_total` | Counter | Messages discarded on a full channel, SLI numerator |
 | `ingest_json_parse_errors_total` | Counter | Malformed frames |
@@ -143,6 +143,7 @@ The 0.5 ms warning is an early signal and not part of the SLO. The `dash-slo` da
 | **Oct 10** | WireGuard tunnel to the VM, server key stored in Object Storage ([ADR 31](docs/decisions.md#31-private-access-through-wireguard-server-key-in-object-storage)) |
 | **Oct 18** | Traefik as NodePort, since nothing provisions a `LoadBalancer` on the VM ([ADR 32](docs/decisions.md#32-traefik-exposed-as-a-nodeport)) |
 | **Oct 18** | ArgoCD manages itself and is exposed through an Ingress ([ADR 33](docs/decisions.md#33-argocd-manages-itself)), k3d dev environment paused, pending a dedicated dev machine |
+| **Oct 24** | Backlog and ADRs reorganised; the SLI now includes queue wait ([ADR 36](docs/decisions.md#36-the-slo-measures-pipeline-latency-including-queue-wait)) |
 
 ---
 
