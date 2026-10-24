@@ -30,6 +30,7 @@ jobs:
     permissions:
       packages: write
       contents: write
+      id-token: write
 
     steps:
       - name: Login to Github pkgs
@@ -54,12 +55,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ghcr.io/rysekk/low-latency-observability:${{ github.sha }}
       
-      - name: Setup Notation
-        uses: notaryproject/notation-action/setup@v1
-        with:
-          version: '1.2.0'
+      - name: Setup sigstore
+        uses: sigstore/cosign-installer@v4.1.2
       
-      - name: Sign image with Notation
+      - name: Sign image (keyless)
         run: |
           notation sign "ghcr.io/rysekk/low-latency-observability@${{ steps.build-and-push.outputs.digest }}"
 
