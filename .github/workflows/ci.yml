@@ -53,6 +53,12 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ghcr.io/rysekk/low-latency-observability:${{ github.sha }}
+      
+      - name: Setup Notation
+        uses: notaryproject/notation-action/setup@v1
+        with:
+          version: '1.2.0'
+      
       - name: Sign image with Notation
         run: |
           notation sign "ghcr.io/rysekk/low-latency-observability@${{ steps.build-and-push.outputs.digest }}"
@@ -64,11 +70,11 @@ jobs:
         run: |
           
           yq -i ".spec.template.spec.containers[0].image = \
-          \"ghcr.io/rysekk/low-latency-observability@${{ github.sha }}\"" \
+          \"ghcr.io/rysekk/low-latency-observability@${{ steps.build-and-push.outputs.digest }}\"" \
           deploy/k8s/app/deployment.yaml
 
           yq -i ".services.trading-app.image = \
-          \"ghcr.io/rysekk/low-latency-observability@${{ github.sha }}\"" \
+          \"ghcr.io/rysekk/low-latency-observability@${{ steps.build-and-push.outputs.digest }}\"" \
           deploy/compose/docker-compose.yml
 
           git config --global user.name 'github-actions[bot]'
