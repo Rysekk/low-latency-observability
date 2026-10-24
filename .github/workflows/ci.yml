@@ -45,6 +45,7 @@ jobs:
         uses: docker/setup-buildx-action@v4
       
       - name: Build and push
+        id: build-and-push
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -52,6 +53,10 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ghcr.io/rysekk/low-latency-observability:${{ github.sha }}
+      - name: Sign image with Notation
+        run: |
+          notation sign "ghcr.io/rysekk/low-latency-observability@${{ steps.build-and-push.outputs.digest }}"
+
       
       - name: Commit and Push changes
         env:
@@ -59,20 +64,20 @@ jobs:
         run: |
           
           yq -i ".spec.template.spec.containers[0].image = \
-          \"ghcr.io/rysekk/low-latency-observability:${{ github.sha }}\"" \
+          \"ghcr.io/rysekk/low-latency-observability@${{ github.sha }}\"" \
           deploy/k8s/app/deployment.yaml
 
           yq -i ".services.trading-app.image = \
-          \"ghcr.io/rysekk/low-latency-observability:${{ github.sha }}\"" \
+          \"ghcr.io/rysekk/low-latency-observability@${{ github.sha }}\"" \
           deploy/compose/docker-compose.yml
 
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           
-          git add deploy/k8s/app/deployment.yaml
+          git add deploy/k8s/app/deployment.yaml deploy/compose/docker-compose.yml
 
           git checkout main
           
-          git commit -m "chore: update image to tag ${{ github.sha }} [skip ci]" || echo "No changes to commit"
+          git commit -m "chore: update image to digest ${CONTAINS_DIGEST:-${{ steps.build-and-push.outputs.digest }}} [skip ci]" || echo "No changes to commit"
           
           git push origin main
