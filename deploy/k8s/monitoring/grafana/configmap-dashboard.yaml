@@ -188,7 +188,7 @@ data:
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "100 * (1 - ((1 - avg_over_time((ingest:pipeline_latency_p99 < bool 0.002)[30d:1m])) / 0.001))",
+              "expr": "100 * (1 - sum_over_time((ingest:pipeline_latency_p99 >= bool 0.002)[30d:1m]) / 43.2)",
               "legendFormat": "__auto",
               "range": false,
               "refId": "A",
@@ -227,7 +227,7 @@ data:
                   }
                 ]
               },
-              "unit": "s"
+              "unit": "m"
             },
             "overrides": []
           },
@@ -266,7 +266,7 @@ data:
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "2592000 * (1 - avg_over_time((ingest:pipeline_latency_p99 < bool 0.002)[30d:1m]))",
+              "expr": "sum_over_time((ingest:pipeline_latency_p99 >= bool 0.002)[30d:1m])",
               "legendFormat": "__auto",
               "range": false,
               "refId": "A",
