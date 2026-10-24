@@ -335,6 +335,27 @@ A multi-provider setup could provide better fault isolation, but it would requir
 
 **To watch**: p99 delta before and after, `container_cpu_cfs_throttled_seconds_total` at zero, node memory headroom.
 
+## 36. The SLO measures pipeline latency, including queue wait
+
+**Context**: The `pipeline` stage starts its timer when a message leaves the buffer. Time spent waiting in the buffer is not measured, so under backpressure the SLI stays low while messages queue up, and the buffer can fill and drop messages with the SLO still green. The histogram's last finite bucket is 2.92 ms (`ExponentialBuckets(10µs, 1.5, 15)`): enough for processing time, which stays well under 2 ms, but not for queue wait.
+
+**Decision**:
+- The SLO is defined on pipeline latency: from the moment `conn.Read` returns to the end of trade conversion. The read timestamp (`time.Time`) travels with the message through the buffer.
+- Stages: `queue` (read → buffer exit), `parse`, `processing` (conversion), and `pipeline` = queue + parse + processing. The SLO is computed on `pipeline`.
+- Buckets are explicit: 10µs, 25µs, 50µs, 100µs, 250µs, 500µs, 1ms, 2ms, 5ms, 10ms, 25ms, 50ms, 100ms. The alert thresholds (0.5 ms and 2 ms) are bucket bounds, so counting slow trades needs no interpolation, and the range up to 100 ms shows the real size of a backlog.
+- The 2 ms page and 0.5 ms warning thresholds are kept, and re-evaluated once the baseline is recorded.
+
+**Rationale**: The SLO must degrade when the service falls behind, which is the failure it exists to catch. Both timestamps come from the process's monotonic clock (`time.Since` on a `time.Time` from `time.Now()`), so an NTP adjustment cannot distort a measurement, consistent with [ADR 3](#3-e-binance-event-time-as-a-freshness-signal-not-an-slo-basis).
+
+**Out of scope**: Time spent in the kernel TCP buffer before `conn.Read` returns, and network time from Binance, are not covered. `E` watches them as a freshness signal (ADR 3). Dropped messages never reach `pipeline`, so latency describes only the trades that survived; the admission and processed ratios cover the loss ([ADR 6](#6-backpressure-drop-rather-than-block)).
+
+**Discarded alternatives**:
+- *Keeping processing time as the SLI*: measures how fast the code runs, not how late the trade is, and is blind to backpressure.
+- *A queue depth gauge* (`len(channel)`): cheaper, but it counts waiting messages instead of measuring how long they wait. A latency SLO needs a time.
+- *`now() - E`*: mixes latency with clock skew, rejected in ADR 3.
+
+**Accepted downside**: The SLI history before the change is not comparable with the history after it. The channel element becomes a struct (slice header + `time.Time`, about 48 bytes) passed by value: a larger copy, no extra heap allocation, to be confirmed by benchmark.
+
 ---
 
 ## Conventions
