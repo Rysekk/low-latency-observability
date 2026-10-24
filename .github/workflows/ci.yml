@@ -54,13 +54,17 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ghcr.io/rysekk/low-latency-observability:${{ github.sha }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       
       - name: Setup sigstore
         uses: sigstore/cosign-installer@v4.1.2
       
       - name: Sign image (keyless)
         run: |
-          notation sign "ghcr.io/rysekk/low-latency-observability@${{ steps.build-and-push.outputs.digest }}"
+          cosign sign --yes "ghcr.io/rysekk/low-latency-observability@${{ steps.build-and-push.outputs.digest }}"
 
       
       - name: Commit and Push changes
