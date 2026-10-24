@@ -354,7 +354,7 @@ A multi-provider setup could provide better fault isolation, but it would requir
 - *A queue depth gauge* (`len(channel)`): cheaper, but it counts waiting messages instead of measuring how long they wait. A latency SLO needs a time.
 - *`now() - E`*: mixes latency with clock skew, rejected in ADR 3.
 
-**Accepted downside**: The SLI history before the change is not comparable with the history after it. The channel element becomes a struct (slice header + `time.Time`, about 48 bytes) passed by value: a larger copy, no extra heap allocation, to be confirmed by benchmark.
+**Accepted downside**: The SLI history before the change is not comparable with the history after it. The channel element becomes a struct (slice header + `time.Time`, about 48 bytes) passed by value: a larger copy, 0 allocs/op, about +30 ns per message on the micro-benchmark, mostly time.Now(), against ~100 µs of queue wait.
 
 ---
 
