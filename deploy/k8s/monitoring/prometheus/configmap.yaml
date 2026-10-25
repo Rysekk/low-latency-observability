@@ -14,8 +14,10 @@ data:
       - name: sli
         interval: 10s
         rules:
-        - record: ingest:processed_ratio
+        - record: ingest:admission_ratio
           expr: 1 - (rate(ingest_message_dropped_total[5m]) / rate(ingest_message_receive_total[5m]))
+        - record: ingest:processed_ratio
+          expr: (sum(rate(ingest_duration_seconds_count{stage="pipeline"}[5m])) / sum(rate(ingest_message_receive_total[5m])))
         - record: ingest:pipeline_latency_p99
           expr: histogram_quantile(0.99, rate(ingest_duration_seconds_bucket{stage="pipeline"}[5m]))
 

@@ -181,7 +181,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "100 * (1 - ((1 - avg_over_time((ingest:pipeline_latency_p99 < bool 0.002)[30d:1m])) / 0.001))",
+          "expr": "100 * (1 - sum_over_time((ingest:pipeline_latency_p99 >= bool 0.002)[30d:1m]) / 43.2)",
           "legendFormat": "__auto",
           "range": false,
           "refId": "A",
@@ -220,7 +220,7 @@
               }
             ]
           },
-          "unit": "s"
+          "unit": "m"
         },
         "overrides": []
       },
@@ -259,7 +259,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "2592000 * (1 - avg_over_time((ingest:pipeline_latency_p99 < bool 0.002)[30d:1m]))",
+          "expr": "sum_over_time((ingest:pipeline_latency_p99 >= bool 0.002)[30d:1m])",
           "legendFormat": "__auto",
           "range": false,
           "refId": "A",
@@ -274,7 +274,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "1 - (drop rate / receive rate) over 5 min. Anything below 1 means the channel is saturating and messages are being dropped by design (ADR 6).",
+      "description": "Over 5 min. Admission: messages admitted into the buffer / messages received; below 1 means the channel is saturating and dropping by design (ADR 6). Processed: trades that completed the pipeline / messages received. The gap between the two is malformed messages + invalid trades. Before 2026-10-25, ingest:processed_ratio used the admission formula.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -324,7 +324,7 @@
           "values": false
         },
         "showPercentChange": false,
-        "textMode": "auto",
+        "textMode": "value_and_name",
         "wideLayout": true,
         "text": {
           "valueSize": 32
@@ -338,13 +338,24 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
+          "expr": "ingest:admission_ratio",
+          "legendFormat": "admission",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
           "expr": "ingest:processed_ratio",
-          "legendFormat": "__auto",
+          "legendFormat": "processed",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Processed ratio",
+      "title": "Admission and processed ratios",
       "type": "stat"
     },
     {
@@ -727,7 +738,7 @@
       },
       "id": 102,
       "panels": [],
-      "title": "Throughput and data loss",
+      "title": "Throughput, drops and errors",
       "type": "row"
     },
     {
@@ -948,8 +959,8 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "rate(ingest_json_parse_errors_total[5m])",
-          "legendFormat": "json",
+          "expr": "rate(ingest_message_malformed_total[5m])",
+          "legendFormat": "malformed message",
           "range": true,
           "refId": "A"
         },
@@ -959,13 +970,13 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "rate(ingest_trade_parse_errors_total[5m])",
-          "legendFormat": "trade",
+          "expr": "rate(ingest_trade_invalid_total[5m])",
+          "legendFormat": "invalid trade",
           "range": true,
           "refId": "B"
         }
       ],
-      "title": "Parse errors",
+      "title": "Malformed messages and invalid trades",
       "type": "timeseries"
     },
     {
