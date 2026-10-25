@@ -118,19 +118,19 @@ func main() {
 			Name: "ingest_message_receive_total",
 			Help: "The total number of message ingested.",
 		})
-	parseJsonError := prometheus.NewCounter(
+	parseMalformedMessage := prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "ingest_json_parse_errors_total",
-			Help: "The total number of error in the Json parsing function pipeline.",
+			Name: "ingest_message_malformed_total",
+			Help: "The total number of messages that cannot be decoded as JSON.",
 		})
-	parseTradeError := prometheus.NewCounter(
+	parseInvalidTrade := prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "ingest_trade_parse_errors_total",
-			Help: "The total number of error in the Trade convertion function pipeline.",
+			Name: "ingest_trade_invalid_total",
+			Help: "The total number of decoded messages whose fields cannot be converted into a trade.",
 		})
 
 	channel := make(chan message, 128)
-	prometheus.MustRegister(metricDuration, messageDropped, messageReceive, parseJsonError, parseTradeError)
+	prometheus.MustRegister(metricDuration, messageDropped, messageReceive, parseMalformedMessage, parseInvalidTrade)
 
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
@@ -153,7 +153,7 @@ func main() {
 		aggTrade, errJson := parseAggTrade(msg.payload)
 		if errJson != nil {
 			log.Printf("Json Parsing Error %v", errJson)
-			parseJsonError.Inc()
+			parseMalformedMessage.Inc()
 			continue
 		}
 		metricDuration.WithLabelValues("parse").Observe(time.Since(parseStart).Seconds())
@@ -161,7 +161,7 @@ func main() {
 		_, errTrade := convertTrade(aggTrade)
 		if errTrade != nil {
 			log.Printf("Trade Parsing Error %v", errTrade)
-			parseTradeError.Inc()
+			parseInvalidTrade.Inc()
 			continue
 		}
 		metricDuration.WithLabelValues("processing").Observe(time.Since(processingStart).Seconds())
