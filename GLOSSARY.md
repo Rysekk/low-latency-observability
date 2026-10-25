@@ -64,3 +64,11 @@ _Avoid_: Buffer latency
 **Processing time**:
 The part of pipeline latency spent parsing and converting a message.
 _Avoid_: Pipeline latency
+
+**Admission ratio**:
+the share of received messages that were admitted into the buffer, admitted / received.
+_Avoid_: processed ratio.
+
+**Processed ratio**:
+the share of received messages that became a trade at the end of the pipeline. It is lower than the admission ratio by the malformed messages and invalid trades.
+_Avoid_: admission ratio, success rate.

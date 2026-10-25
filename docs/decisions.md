@@ -90,7 +90,7 @@
 
 **Options**: compute SLIs on the fly inside Grafana queries, or precompute them as Prometheus recording rules defined in versioned files.
 
-**Decision**: recording rules (`ingest:processed_ratio`, `ingest:pipeline_latency_p99`).
+**Decision**: recording rules (`ingest:admission_ratio`, `ingest:processed_ratio`, `ingest:pipeline_latency_p99`).
 
 **Rationale**: an SLI definition is a contract, not a presentation detail. Inside a Grafana panel it can be edited by anyone, stays invisible to code review, and disappears with the instance. As a versioned file it travels with the repository, which was confirmed during the Docker Compose to Kubernetes migration where the rules carried over untouched. Secondary benefit: precomputation takes load off dashboard queries.
 
@@ -308,7 +308,7 @@ A multi-provider setup could provide better fault isolation, but it would requir
 - *Traces*: none for now. The same Collector receives OTLP traces when they exist.
 - *Alerting*: Prometheus rules only, routed by Alertmanager to a single receiver. Loki serves investigation, no ruler.
 
-**Rationale**: Pull gives `up` for every target, which the no-data alert relies on; with push, a silent target looks the same as absent data. The SLO path stays app → Prometheus, so a Collector failure costs logs, not the SLO. The Prometheus client costs a few atomic adds per observation in the measured path; the OTel metrics SDK does more work per record and would need its own benchmark to earn its place. The exporters already speak the Prometheus format, so a Collector in front of them is a hop for nothing. Logs need an agent anyway, and the Collector is the vendor-neutral one that will also carry traces: one agent for both. Anything worth alerting on in the logs becomes a counter in the app, as `ingest_json_parse_errors_total` already is.
+**Rationale**: Pull gives `up` for every target, which the no-data alert relies on; with push, a silent target looks the same as absent data. The SLO path stays app → Prometheus, so a Collector failure costs logs, not the SLO. The Prometheus client costs a few atomic adds per observation in the measured path; the OTel metrics SDK does more work per record and would need its own benchmark to earn its place. The exporters already speak the Prometheus format, so a Collector in front of them is a hop for nothing. Logs need an agent anyway, and the Collector is the vendor-neutral one that will also carry traces: one agent for both. Anything worth alerting on in the logs becomes a counter in the app, as `ingest_message_malformed_total` already is.
 
 **Discarded alternatives**:
 - *Every signal through OpenTelemetry* (Collector scrapes, remote-writes to Prometheus): one pipeline and shared resource attributes, but an extra hop in the SLO path and pull semantics rebuilt with `absent()`. To revisit with a second metrics backend, a second cluster or a push-only source.

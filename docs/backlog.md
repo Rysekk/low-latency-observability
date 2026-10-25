@@ -7,6 +7,7 @@
 ## Inbox
 
 - [ ] Native histograms (`NativeHistogramBucketFactor`): no `le` labels, so a layout change can't mix. Trigger: next histogram layout change
+- [ ] Private package Registery : Pass the Github package registery to private (need configuration of the CI and add a secret in the cluster)
 
 ## Now: Observability v1
 
@@ -15,8 +16,8 @@
 ### 1. Correct SLI and baseline
 - [x] **SLI defect**: Capture the time spent in the channel buffer. Currently, `pipelineStart` begins upon channel exit, leaving the queue wait time unmeasured → ADR 36
 - [ ] Structured JSON logging, in preparation for Loki
-- [ ] (new) Rename the parse counters to *malformed message* and *invalid trade*; rename the dashboard row to "Throughput, drops and errors"
-- [ ] (new) Split the ratio: `ingest:admission_ratio` (current formula) and `ingest:processed_ratio` (trades / messages); update SLO panel 13
+- [x] (new) Rename the parse counters to *malformed message* and *invalid trade*; rename the dashboard row to "Throughput, drops and errors"
+- [x] (new) Split the ratio: `ingest:admission_ratio` (current formula) and `ingest:processed_ratio` (trades / messages); update SLO panel 13
 - [ ] (new) Record the baseline: ingestor p99 and CFS throttling, before any new component
 - [ ] Watch `container_cpu_cfs_throttled_seconds_total`, which must stay at zero (see [ADR 12](decisions.md#12-burstable-qos))
 

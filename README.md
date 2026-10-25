@@ -104,7 +104,7 @@ Git is the only write path to the cluster. `make up` is a bootstrap.
 | **Alerts** | `page_high_latency_pipeline_p99` above 2 ms, `warning_high_latency_pipeline_p99` above 0.5 ms. Both `for: 10m`, `keep_firing_for: 5m` |
 | **Actual window** | Since 2026-08-11, when the TSDB became persistent |
 
-SLIs are recording rules (`ingest:processed_ratio`, `ingest:pipeline_latency_p99`).
+SLIs are recording rules (`ingest:processed_ratio`, `ingest:admission_ratio`, `ingest:pipeline_latency_p99`).
 
 The 0.5 ms warning is an early signal and not part of the SLO. The `dash-slo` dashboard computes budget consumption from the p99 rule over 30 days. Downtime doesn't consume budget yet because the series is just missing when the app is down. A no-data alert is in the backlog.
 
@@ -115,8 +115,8 @@ The 0.5 ms warning is an early signal and not part of the SLO. The `dash-slo` da
 | `ingest_duration_seconds{stage}` | Histogram | Per-stage latency, `queue` / `parse` / `processing` / `pipeline`. 13 explicit buckets up to 100 ms |
 | `ingest_message_receive_total` | Counter | Messages read off the socket, SLI denominator |
 | `ingest_message_dropped_total` | Counter | Messages discarded on a full channel, SLI numerator |
-| `ingest_json_parse_errors_total` | Counter | Malformed frames |
-| `ingest_trade_parse_errors_total` | Counter | Frames that parse as JSON but not as a trade |
+| `ingest_message_malformed_total` | Counter | Malformed messages: payloads that cannot be decoded as JSON |
+| `ingest_trade_invalid_total` | Counter | Invalid trades: decoded messages whose price, quantity or time cannot be converted |
 
 ![SLO dashboard](docs/img/dashboard-slo.png)
 
