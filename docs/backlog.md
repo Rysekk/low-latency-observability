@@ -9,6 +9,7 @@
 - [ ] Native histograms (`NativeHistogramBucketFactor`): no `le` labels, so a layout change can't mix. Trigger: next histogram layout change
 - [ ] Private package Registery : Pass the Github package registery to private (need configuration of the CI and add a secret in the cluster)
 - [ ] Prometheus rules hot-reload: a ConfigMap update reaches the pod but Prometheus never reloads it. Pick built-in `auto-reload-config` vs configmap-reload sidecar (+ `--web.enable-lifecycle`) vs restart-based (Reloader / checksum) → ADR; alert on `prometheus_config_last_reload_successful == 0`
+- [ ] Public status page: publish the service health (SLO, p99, ratios) on the internet so anyone can check it, without exposing the Grafana instance. First public surface, so it meets the trigger of the *Oracle load balancer* item in Later
 
 ## Now: Observability v1
 

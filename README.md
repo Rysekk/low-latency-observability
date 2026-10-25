@@ -144,6 +144,7 @@ The 0.5 ms warning is an early signal and not part of the SLO. The `dash-slo` da
 | **Oct 18** | Traefik as NodePort, since nothing provisions a `LoadBalancer` on the VM ([ADR 32](docs/decisions.md#32-traefik-exposed-as-a-nodeport)) |
 | **Oct 18** | ArgoCD manages itself and is exposed through an Ingress ([ADR 33](docs/decisions.md#33-argocd-manages-itself)), k3d dev environment paused, pending a dedicated dev machine |
 | **Oct 24** | Backlog and ADRs reorganised; the SLI now includes queue wait ([ADR 36](docs/decisions.md#36-the-slo-measures-pipeline-latency-including-queue-wait)) |
+| **Oct 25** | Metrics follow the [glossary](GLOSSARY.md): parse counters renamed to *malformed message* and *invalid trade*, and the loss ratio split into an admission ratio (drops) and a processed ratio (trades out of messages received) |
 
 ---
 
