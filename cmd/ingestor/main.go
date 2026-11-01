@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -27,6 +27,17 @@ type AggTrade struct {
 	TradeTime int64  `json:"T"`
 }
 
+func (t AggTrade) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("EventType", t.EventType),
+		slog.Int64("EventTime", t.EventTime),
+		slog.String("Symbol", t.Symbol),
+		slog.String("Price", t.Price),
+		slog.String("Quantity", t.Quantity),
+		slog.Int64("TradeTime", t.TradeTime),
+	)
+}
+
 type Trade struct {
 	EventType string
 	EventTime time.Time
@@ -41,17 +52,39 @@ type message struct {
 	readAt  time.Time
 }
 
-func readStream(ctx context.Context, c chan message, conn *websocket.Conn, messageDropped prometheus.Counter, messageReceive prometheus.Counter) {
+type logThrottle struct {
+	interval   time.Duration
+	last       time.Time
+	suppressed int
+}
+
+func (t *logThrottle) allow(now time.Time) (ok bool, suppressed int) {
+	if now.Sub(t.last) >= t.interval {
+		t.last = now
+
+		n := t.suppressed
+		t.suppressed = 0
+
+		return true, n
+	}
+	t.suppressed = t.suppressed + 1
+	return false, 0
+}
+
+func readStream(ctx context.Context, c chan message, conn *websocket.Conn, messageDropped prometheus.Counter,
+	messageReceive prometheus.Counter, logger *slog.Logger) {
 	defer close(c)
 	for {
 		_, result, err := conn.Read(ctx)
 		queueStart := time.Now()
 		if err != nil {
 			if ctx.Err() != nil {
-				log.Println("shutdown requested")
+				logger.Info("shutdown requested")
 				return
 			} else {
-				log.Printf("Read Error %v", err)
+				logger.Error("connection error",
+					slog.String("error", err.Error()),
+				)
 				return
 			}
 		}
@@ -65,9 +98,12 @@ func readStream(ctx context.Context, c chan message, conn *websocket.Conn, messa
 	}
 }
 
-func httpPrometheusExporter() {
+func httpPrometheusExporter(logger *slog.Logger) {
 	http.Handle("/metrics", promhttp.Handler())
-	log.Fatalln(http.ListenAndServe(":8080", nil))
+	logger.Error("metrics server failed",
+		slog.Any("error", http.ListenAndServe(":8080", nil)),
+	)
+	os.Exit(1)
 }
 
 func parseAggTrade(msg []byte) (AggTrade, error) {
@@ -130,6 +166,9 @@ func main() {
 		})
 
 	channel := make(chan message, 128)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	malformedThrottle := logThrottle{interval: 10 * time.Second}
+	invalidThrottle := logThrottle{interval: 10 * time.Second}
 	prometheus.MustRegister(metricDuration, messageDropped, messageReceive, parseMalformedMessage, parseInvalidTrade)
 
 	ctx, stop := signal.NotifyContext(
@@ -139,29 +178,55 @@ func main() {
 	)
 	defer stop()
 
-	conn, _, err := websocket.Dial(ctx, wsendpoint, nil)
+	conn, resp, err := websocket.Dial(ctx, wsendpoint, nil)
 	if err != nil {
-		log.Fatalf("Fail to connect to the websocket: %v", err)
+		status := "none"
+		if resp != nil {
+			status = resp.Status
+		}
+		logger.Error("fail to connect to the websocket",
+			slog.String("error", err.Error()),
+			slog.String("websocket_url", wsendpoint),
+			slog.String("http_response", status),
+		)
+		os.Exit(1)
+	} else {
+		logger.Info("connected to the websocket",
+			slog.String("websocket_url", wsendpoint),
+			slog.String("http_response", resp.Status),
+		)
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "Client closing connection")
 
-	go readStream(ctx, channel, conn, messageDropped, messageReceive)
-	go httpPrometheusExporter()
+	go readStream(ctx, channel, conn, messageDropped, messageReceive, logger)
+	go httpPrometheusExporter(logger)
 	for msg := range channel {
 		metricDuration.WithLabelValues("queue").Observe(time.Since(msg.readAt).Seconds())
 		parseStart := time.Now()
 		aggTrade, errJson := parseAggTrade(msg.payload)
 		if errJson != nil {
-			log.Printf("Json Parsing Error %v", errJson)
 			parseMalformedMessage.Inc()
+			if ok, suppressed := malformedThrottle.allow(time.Now()); ok {
+				logger.Error("malformed message",
+					slog.String("error", errJson.Error()),
+					slog.String("payload", string(msg.payload[:min(len(msg.payload), 1024)])),
+					slog.Int("suppressed", suppressed),
+				)
+			}
 			continue
 		}
 		metricDuration.WithLabelValues("parse").Observe(time.Since(parseStart).Seconds())
 		processingStart := time.Now()
 		_, errTrade := convertTrade(aggTrade)
 		if errTrade != nil {
-			log.Printf("Trade Parsing Error %v", errTrade)
 			parseInvalidTrade.Inc()
+			if ok, suppressed := invalidThrottle.allow(time.Now()); ok {
+				logger.Error("invalid trade",
+					slog.String("error", errTrade.Error()),
+					slog.Any("trade", aggTrade),
+					slog.Int("suppressed", suppressed),
+				)
+			}
 			continue
 		}
 		metricDuration.WithLabelValues("processing").Observe(time.Since(processingStart).Seconds())

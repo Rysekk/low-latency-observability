@@ -169,3 +169,37 @@ func BenchmarkChannelMessage(b *testing.B) {
 		<-c
 	}
 }
+
+func TestLogThrottleAllow(t *testing.T) {
+	// A real date, not time.Time{}: the first call must be far from the zero value of last
+	start := time.Unix(1000, 0)
+	throttle := logThrottle{interval: 10 * time.Second}
+
+	tests := []struct {
+		name           string
+		now            time.Time
+		wantOk         bool
+		wantSuppressed int
+	}{
+		{name: "first error is logged", now: start, wantOk: true, wantSuppressed: 0},
+		{name: "inside the interval is suppressed", now: start.Add(1 * time.Second), wantOk: false, wantSuppressed: 0},
+		{name: "still inside the interval", now: start.Add(2 * time.Second), wantOk: false, wantSuppressed: 0},
+		{name: "after the interval reports the suppressed lines", now: start.Add(10 * time.Second), wantOk: true, wantSuppressed: 2},
+		{name: "the interval restarts after a logged line", now: start.Add(11 * time.Second), wantOk: false, wantSuppressed: 0},
+		{name: "the suppressed count restarts after a logged line", now: start.Add(20 * time.Second), wantOk: true, wantSuppressed: 1},
+	}
+
+	// The calls share one throttle, so the order of the table matters
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ok, suppressed := throttle.allow(tc.now)
+
+			if ok != tc.wantOk {
+				t.Errorf("allow() ok = %v, want %v", ok, tc.wantOk)
+			}
+			if suppressed != tc.wantSuppressed {
+				t.Errorf("allow() suppressed = %d, want %d", suppressed, tc.wantSuppressed)
+			}
+		})
+	}
+}
