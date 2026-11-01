@@ -10,6 +10,7 @@
 - [ ] Private package Registery : Pass the Github package registery to private (need configuration of the CI and add a secret in the cluster)
 - [ ] Prometheus rules hot-reload: a ConfigMap update reaches the pod but Prometheus never reloads it. Pick built-in `auto-reload-config` vs configmap-reload sidecar (+ `--web.enable-lifecycle`) vs restart-based (Reloader / checksum) → ADR; alert on `prometheus_config_last_reload_successful == 0`
 - [ ] Public status page: publish the service health (SLO, p99, ratios) on the internet so anyone can check it, without exposing the Grafana instance. First public surface, so it meets the trigger of the *Oracle load balancer* item in Later
+- [ ] After a read error at line 54, readStream closes the channel and main returns normally, so the process exits with code 0 after a failure. Kubernetes will see it as "Completed", not "Error",
 
 ## Now: Observability v1
 
