@@ -1,8 +1,4 @@
 apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: grafana-dashboards
-  namespace: trading-app
 data:
   dashboard.json: |
     {
@@ -25,8 +21,6 @@ data:
       "editable": true,
       "fiscalYearStartMonth": 0,
       "graphTooltip": 1,
-      "id": null,
-      "links": [],
       "liveNow": false,
       "panels": [
         {
@@ -37,7 +31,7 @@ data:
             "x": 0,
             "y": 0
           },
-          "id": 100,
+          "id": 42,
           "panels": [],
           "title": "SLO — p99 pipeline latency < 2 ms over 30 days",
           "type": "row"
@@ -53,13 +47,12 @@ data:
               "color": {
                 "mode": "thresholds"
               },
-              "mappings": [],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
                     "color": "green",
-                    "value": null
+                    "value": 0
                   },
                   {
                     "color": "#EAB839",
@@ -72,8 +65,7 @@ data:
                 ]
               },
               "unit": "s"
-            },
-            "overrides": []
+            }
           },
           "gridPos": {
             "h": 4,
@@ -96,13 +88,13 @@ data:
               "values": false
             },
             "showPercentChange": false,
-            "textMode": "auto",
-            "wideLayout": true,
             "text": {
               "valueSize": 32
-            }
+            },
+            "textMode": "auto",
+            "wideLayout": true
           },
-          "pluginVersion": "13.1.0",
+          "pluginVersion": "13.0.11",
           "targets": [
             {
               "datasource": {
@@ -130,13 +122,13 @@ data:
               "color": {
                 "mode": "thresholds"
               },
-              "mappings": [],
+              "decimals": 1,
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
                     "color": "red",
-                    "value": null
+                    "value": 0
                   },
                   {
                     "color": "#EAB839",
@@ -148,10 +140,8 @@ data:
                   }
                 ]
               },
-              "unit": "percent",
-              "decimals": 1
-            },
-            "overrides": []
+              "unit": "percent"
+            }
           },
           "gridPos": {
             "h": 4,
@@ -174,13 +164,13 @@ data:
               "values": false
             },
             "showPercentChange": false,
-            "textMode": "auto",
-            "wideLayout": true,
             "text": {
               "valueSize": 32
-            }
+            },
+            "textMode": "auto",
+            "wideLayout": true
           },
-          "pluginVersion": "13.1.0",
+          "pluginVersion": "13.0.11",
           "targets": [
             {
               "datasource": {
@@ -189,10 +179,10 @@ data:
               },
               "editorMode": "code",
               "expr": "100 * (1 - sum_over_time((ingest:pipeline_latency_p99 >= bool 0.002)[30d:1m]) / 43.2)",
+              "instant": true,
               "legendFormat": "__auto",
               "range": false,
-              "refId": "A",
-              "instant": true
+              "refId": "A"
             }
           ],
           "title": "Error budget remaining (30d)",
@@ -209,13 +199,12 @@ data:
               "color": {
                 "mode": "thresholds"
               },
-              "mappings": [],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
                     "color": "green",
-                    "value": null
+                    "value": 0
                   },
                   {
                     "color": "#EAB839",
@@ -228,8 +217,7 @@ data:
                 ]
               },
               "unit": "m"
-            },
-            "overrides": []
+            }
           },
           "gridPos": {
             "h": 4,
@@ -252,13 +240,13 @@ data:
               "values": false
             },
             "showPercentChange": false,
-            "textMode": "auto",
-            "wideLayout": true,
             "text": {
               "valueSize": 32
-            }
+            },
+            "textMode": "auto",
+            "wideLayout": true
           },
-          "pluginVersion": "13.1.0",
+          "pluginVersion": "13.0.11",
           "targets": [
             {
               "datasource": {
@@ -267,10 +255,10 @@ data:
               },
               "editorMode": "code",
               "expr": "sum_over_time((ingest:pipeline_latency_p99 >= bool 0.002)[30d:1m])",
+              "instant": true,
               "legendFormat": "__auto",
               "range": false,
-              "refId": "A",
-              "instant": true
+              "refId": "A"
             }
           ],
           "title": "Time above objective (30d)",
@@ -287,13 +275,13 @@ data:
               "color": {
                 "mode": "thresholds"
               },
-              "mappings": [],
+              "decimals": 3,
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
                     "color": "red",
-                    "value": null
+                    "value": 0
                   },
                   {
                     "color": "#EAB839",
@@ -305,10 +293,8 @@ data:
                   }
                 ]
               },
-              "unit": "percentunit",
-              "decimals": 3
-            },
-            "overrides": []
+              "unit": "percentunit"
+            }
           },
           "gridPos": {
             "h": 4,
@@ -331,13 +317,13 @@ data:
               "values": false
             },
             "showPercentChange": false,
-            "textMode": "value_and_name",
-            "wideLayout": true,
             "text": {
               "valueSize": 32
-            }
+            },
+            "textMode": "value_and_name",
+            "wideLayout": true
           },
-          "pluginVersion": "13.1.0",
+          "pluginVersion": "13.0.11",
           "targets": [
             {
               "datasource": {
@@ -373,7 +359,7 @@ data:
             "x": 0,
             "y": 5
           },
-          "id": 101,
+          "id": 43,
           "panels": [],
           "title": "Latency",
           "type": "row"
@@ -427,14 +413,12 @@ data:
                   "mode": "dashed"
                 }
               },
-              "mappings": [],
-              "unit": "s",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
                     "color": "green",
-                    "value": null
+                    "value": 0
                   },
                   {
                     "color": "#EAB839",
@@ -445,9 +429,9 @@ data:
                     "value": 0.002
                   }
                 ]
-              }
-            },
-            "overrides": []
+              },
+              "unit": "s"
+            }
           },
           "gridPos": {
             "h": 8,
@@ -479,7 +463,7 @@ data:
               "sort": "desc"
             }
           },
-          "pluginVersion": "13.1.0",
+          "pluginVersion": "13.0.11",
           "targets": [
             {
               "datasource": {
@@ -544,19 +528,17 @@ data:
                   "mode": "off"
                 }
               },
-              "mappings": [],
-              "unit": "s",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
                     "color": "green",
-                    "value": null
+                    "value": 0
                   }
                 ]
-              }
-            },
-            "overrides": []
+              },
+              "unit": "s"
+            }
           },
           "gridPos": {
             "h": 8,
@@ -587,7 +569,7 @@ data:
               "sort": "desc"
             }
           },
-          "pluginVersion": "13.1.0",
+          "pluginVersion": "13.0.11",
           "targets": [
             {
               "datasource": {
@@ -674,19 +656,17 @@ data:
                   "mode": "off"
                 }
               },
-              "mappings": [],
-              "unit": "s",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
                     "color": "green",
-                    "value": null
+                    "value": 0
                   }
                 ]
-              }
-            },
-            "overrides": []
+              },
+              "unit": "s"
+            }
           },
           "gridPos": {
             "h": 8,
@@ -718,7 +698,7 @@ data:
               "sort": "desc"
             }
           },
-          "pluginVersion": "13.1.0",
+          "pluginVersion": "13.0.11",
           "targets": [
             {
               "datasource": {
@@ -743,7 +723,7 @@ data:
             "x": 0,
             "y": 22
           },
-          "id": 102,
+          "id": 44,
           "panels": [],
           "title": "Throughput, drops and errors",
           "type": "row"
@@ -796,19 +776,17 @@ data:
                   "mode": "off"
                 }
               },
-              "mappings": [],
-              "unit": "mps",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
                     "color": "green",
-                    "value": null
+                    "value": 0
                   }
                 ]
-              }
-            },
-            "overrides": []
+              },
+              "unit": "mps"
+            }
           },
           "gridPos": {
             "h": 8,
@@ -839,7 +817,7 @@ data:
               "sort": "desc"
             }
           },
-          "pluginVersion": "13.1.0",
+          "pluginVersion": "13.0.11",
           "targets": [
             {
               "datasource": {
@@ -915,19 +893,17 @@ data:
                   "mode": "off"
                 }
               },
-              "mappings": [],
-              "unit": "mps",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
                     "color": "green",
-                    "value": null
+                    "value": 0
                   }
                 ]
-              }
-            },
-            "overrides": []
+              },
+              "unit": "mps"
+            }
           },
           "gridPos": {
             "h": 8,
@@ -958,7 +934,7 @@ data:
               "sort": "desc"
             }
           },
-          "pluginVersion": "13.1.0",
+          "pluginVersion": "13.0.11",
           "targets": [
             {
               "datasource": {
@@ -1035,14 +1011,14 @@ data:
                   "mode": "off"
                 }
               },
-              "mappings": [],
-              "unit": "short",
+              "max": 1,
+              "min": 0,
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
                     "color": "red",
-                    "value": null
+                    "value": 0
                   },
                   {
                     "color": "green",
@@ -1050,10 +1026,8 @@ data:
                   }
                 ]
               },
-              "max": 1,
-              "min": 0
-            },
-            "overrides": []
+              "unit": "short"
+            }
           },
           "gridPos": {
             "h": 4,
@@ -1081,7 +1055,7 @@ data:
               "sort": "desc"
             }
           },
-          "pluginVersion": "13.1.0",
+          "pluginVersion": "13.0.11",
           "targets": [
             {
               "datasource": {
@@ -1097,19 +1071,414 @@ data:
           ],
           "title": "Feed liveness",
           "type": "timeseries"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 35
+          },
+          "id": 45,
+          "panels": [],
+          "title": "Baseline",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  }
+                ]
+              },
+              "unit": "s"
+            }
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 6,
+            "x": 0,
+            "y": 36
+          },
+          "id": 33,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "percentChangeColorMode": "inverted",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "13.0.11",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "quantile_over_time(0.5, ingest:pipeline_latency_p99[$__range])",
+              "instant": true,
+              "legendFormat": "__auto",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Median P99 Pipeline Latency",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  }
+                ]
+              },
+              "unit": "s"
+            }
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 6,
+            "x": 6,
+            "y": 36
+          },
+          "id": 37,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "percentChangeColorMode": "inverted",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "13.0.11",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "quantile_over_time(0.95, ingest:pipeline_latency_p99[$__range])",
+              "instant": true,
+              "legendFormat": "__auto",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "95th Percentile of P99 Latency",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  }
+                ]
+              },
+              "unit": "s"
+            }
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 6,
+            "x": 12,
+            "y": 36
+          },
+          "id": 38,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "percentChangeColorMode": "inverted",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "13.0.11",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "max_over_time(ingest:pipeline_latency_p99[$__range])",
+              "instant": true,
+              "legendFormat": "__auto",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Peak P99 Pipeline Latency",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  }
+                ]
+              },
+              "unit": "m"
+            }
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 6,
+            "x": 18,
+            "y": 36
+          },
+          "id": 41,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "percentChangeColorMode": "inverted",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "13.0.11",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum_over_time((ingest:pipeline_latency_p99 >= bool 0.002)[$__range:1m])",
+              "instant": true,
+              "legendFormat": "__auto",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "SLO Breach Minutes (>2ms P99)",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  }
+                ]
+              },
+              "unit": "s"
+            }
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 24,
+            "x": 0,
+            "y": 43
+          },
+          "id": 39,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "percentChangeColorMode": "inverted",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "13.0.11",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "histogram_quantile(0.99, sum by (le, stage)(increase(ingest_duration_seconds_bucket[$__range])))",
+              "instant": true,
+              "legendFormat": "{{stage}}",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Stage P99 Duration",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "displayName": "Message",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  }
+                ]
+              }
+            }
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 9,
+            "x": 0,
+            "y": 53
+          },
+          "id": 40,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "percentChangeColorMode": "inverted",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "13.0.11",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum(increase(ingest_message_receive_total[$__range]))",
+              "instant": true,
+              "legendFormat": "__auto",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Total Ingested Messages",
+          "type": "stat"
         }
       ],
       "preload": false,
       "refresh": "30s",
       "schemaVersion": 42,
-      "tags": [
-        "slo",
-        "latency",
-        "ingest"
-      ],
-      "templating": {
-        "list": []
-      },
       "time": {
         "from": "now-6h",
         "to": "now"
@@ -1130,7 +1499,9 @@ data:
       },
       "timezone": "browser",
       "title": "Pipeline Latency / SLO",
-      "uid": "dash-slo",
-      "version": 5,
-      "weekStart": ""
+      "uid": "dash-slo"
     }
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: trading-app
